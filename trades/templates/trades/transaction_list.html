@@ -1,0 +1,62 @@
+<!-- trades/templates/trades/transaction_list.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>All Transactions</title>
+</head>
+<body>
+    <h1>All Transactions</h1>
+
+    <p>
+        <!-- Link to the 'Add Transaction' view -->
+        <a href="{% url 'trades:transaction_add' %}">Add Transaction</a>
+    </p>
+
+    <table border="1">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Name</th> <!-- (Reflects "Name" from old script) -->
+                <th>Type</th>
+                <th>Price</th>
+                <th>Quantity</th>
+                <th>Date of Holding</th>
+                <th>Realised Profit</th>
+                <th>Cumulative Profit</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for t in transactions %}
+            <tr>
+                <td>{{ t.id }}</td>
+                
+                <!-- 
+                  If your model stores the item name in t.name, use {{ t.name }}
+                  If it's a related Item model with “item.name”, keep your existing code
+                  But the old script used “Name” as a direct field, so here's the direct approach:
+                -->
+                <td>{{ t.name }}</td>
+
+                <!-- The old script used "Buy"/"Sell" in a field called 'Type'.
+                     In Django, if your field is named "trans_type", adjust accordingly:
+                -->
+                <td>{{ t.trans_type }}</td>
+
+                <!-- Format price to 2 decimals -->
+                <td>{{ t.price|floatformat:2 }}</td>
+
+                <!-- Format quantity to 2 decimals (or no decimals if integer) -->
+                <td>{{ t.quantity|floatformat:2 }}</td>
+
+                <!-- The old script calls it "Date of Holding" -->
+                <td>{{ t.date_of_holding }}</td>
+
+                <!-- Realised Profit and Cumulative Profit from old script -->
+                <td>{{ t.realised_profit|floatformat:2 }}</td>
+                <td>{{ t.cumulative_profit|floatformat:2 }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

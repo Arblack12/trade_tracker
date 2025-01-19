@@ -1,0 +1,18 @@
+<!-- trades/templates/trades/index.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Trade Tracker - Home</title>
+</head>
+<body>
+    <h1>Welcome to the Trade Tracker</h1>
+    <ul>
+      <li><a href="{% url 'trades:transaction_list' %}">Transactions</a></li>
+      <li><a href="{% url 'trades:alias_list' %}">Aliases</a></li>
+      <li><a href="{% url 'trades:wealth_list' %}">Wealth Data</a></li>
+      <li><a href="{% url 'trades:membership_list' %}">Membership Status</a></li>
+      <li><a href="{% url 'trades:watchlist_list' %}">Watchlist</a></li>
+      <li><a href="{% url 'trades:global_profit_chart' %}">Global Profit Chart (PNG)</a></li>
+    </ul>
+</body>
+</html>
