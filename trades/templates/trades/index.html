@@ -1,18 +1,67 @@
-<!-- trades/templates/trades/index.html -->
+{% load static %}
 <!DOCTYPE html>
 <html>
 <head>
     <title>Trade Tracker - Home</title>
+    <!-- Use the same dark theme as other pages -->
+    <link rel="stylesheet" href="{% static 'trades/css/dark_theme.css' %}">
+    <style>
+        /* Extra styling for homepage layout/images (inspired by the old GUI) */
+        .home-logo {
+            display: block;
+            margin: 0 auto;
+            max-width: 120px; /* Adjust as desired */
+            margin-bottom: 20px;
+        }
+        .home-links {
+            list-style: none;
+            padding: 0;
+            margin: 20px 0;
+        }
+        .home-links li {
+            margin: 8px 0;
+        }
+        .home-links a {
+            font-weight: bold;
+        }
+        .welcome-text {
+            font-size: 1.1rem;
+            margin-bottom: 20px;
+        }
+    </style>
 </head>
 <body>
-    <h1>Welcome to the Trade Tracker</h1>
-    <ul>
+<div class="container">
+
+    <h1>RS3 Transaction Recorder</h1>
+
+    <!-- Example image usage (replace rs3_logo.webp with any image you have) -->
+    <img src="{% static 'trades/images/rs3_logo.webp' %}" alt="RS3 Logo" class="home-logo">
+
+    <p class="welcome-text">
+      Welcome to the RS3 Transaction Recorder! This web-based version carries over the key features
+      from the original Python GUI—such as handling item aliases, membership status, watchlists, 
+      wealth tracking, and more—while providing a clean dark theme for comfortable viewing.
+    </p>
+
+    <ul class="home-links">
       <li><a href="{% url 'trades:transaction_list' %}">Transactions</a></li>
       <li><a href="{% url 'trades:alias_list' %}">Aliases</a></li>
       <li><a href="{% url 'trades:wealth_list' %}">Wealth Data</a></li>
       <li><a href="{% url 'trades:membership_list' %}">Membership Status</a></li>
       <li><a href="{% url 'trades:watchlist_list' %}">Watchlist</a></li>
       <li><a href="{% url 'trades:global_profit_chart' %}">Global Profit Chart (PNG)</a></li>
+      <li><a href="{% url 'trades:account_page' %}">Account Page &amp; Password Reset</a></li>
     </ul>
+
+    <p>
+      Use the links above to navigate. For example, click 
+      <strong><a href="{% url 'trades:transaction_list' %}">Transactions</a></strong> to view your 
+      current buy/sell records, or 
+      <strong><a href="{% url 'trades:alias_list' %}">Aliases</a></strong> to manage 
+      item name shortcuts and images.
+    </p>
+
+</div>
 </body>
 </html>
