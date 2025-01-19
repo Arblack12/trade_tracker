@@ -3,8 +3,34 @@
 <html>
 <head>
     <title>Main</title>
+    <!-- Load your usual dark_theme.css, but we’re also adding inline overrides below. -->
     <link rel="stylesheet" href="{% static 'trades/css/dark_theme.css' %}">
+    
     <style>
+        /* Force the nav into big horizontal buttons with !important overrides */
+        .top-nav {
+            margin-bottom: 20px !important;
+        }
+        .top-nav .nav-buttons {
+            list-style: none !important;  /* remove bullets */
+            display: flex !important;     /* horizontal layout */
+            gap: 10px !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+        .top-nav .nav-buttons li a {
+            background-color: #008c5f !important;
+            color: #fff !important;
+            padding: 10px 20px !important;
+            text-decoration: none !important;
+            border-radius: 4px !important;
+            font-weight: bold !important;
+            display: inline-block !important;
+        }
+        .top-nav .nav-buttons li a:hover {
+            background-color: #00a874 !important;
+        }
+
         .top-row {
             display: flex;
             align-items: center;
@@ -41,9 +67,9 @@
 <body>
 <div class="container">
 
-    <!-- NAV TABS (Home, etc.) -->
+    <!-- NAV BAR: horizontal button style -->
     <div class="top-nav">
-        <ul class="tabs">
+        <ul class="nav-buttons">
             <li><a href="{% url 'trades:index' %}">Home</a></li>
             <li><a href="{% url 'trades:alias_list' %}">Aliases</a></li>
             <li><a href="{% url 'trades:membership_list' %}">Membership</a></li>
@@ -53,8 +79,9 @@
             <li><a href="{% url 'trades:account_page' %}">Account</a></li>
         </ul>
     </div>
+    <!-- END NAV BAR -->
 
-    <!-- TOP-ROW with search, timeframe, and chart buttons -->
+    <!-- TOP ROW: search, timeframe, chart buttons -->
     <div class="top-row">
         <form method="get" action=".">
             <label for="id_search">Search Item:</label>
@@ -68,8 +95,6 @@
             <button type="submit">Search</button>
         </form>
 
-        <!-- "Generate Chart" can just link to the same global_profit_chart,
-             or you can build a new chart function that uses "timeframe" param. -->
         <a href="{% url 'trades:global_profit_chart' %}" style="margin-left:10px;">
             <button>Generate Chart</button>
         </a>
@@ -106,46 +131,37 @@
                {% if item_transactions %}{{ item_transactions.0.date_of_holding }}{% else %}-{% endif %}</p>
         </div>
 
-        <!-- RIGHT PANEL: accumulation, target, transaction add -->
+        <!-- RIGHT PANEL: Update Accum/Target + Add Transaction (always visible) -->
         <div class="right-panel">
             <div class="panel-title">Update Accum/Target</div>
-            {% if item_obj %}
-              <!-- Accumulation form -->
-              <form method="post" style="margin-bottom:10px;">
+            <!-- Accumulation form -->
+            <form method="post" style="margin-bottom:10px;">
                 {% csrf_token %}
-                <input type="hidden" name="acc_item_id" value="{{ item_obj.id }}">
+                <input type="hidden" name="acc_item_id" value="{% if item_obj %}{{ item_obj.id }}{% endif %}">
                 <label for="acc_price">Accumulation Price:</label>
                 <input type="number" step="0.01" name="accumulation_price" id="acc_price"
                        value="{% if accumulation_obj %}{{ accumulation_obj.accumulation_price }}{% else %}0{% endif %}">
                 <button type="submit" name="update_accumulation">Update Accumulation</button>
-              </form>
+            </form>
 
-              <!-- Target Sell Price form -->
-              <form method="post" style="margin-bottom:20px;">
+            <!-- Target Sell Price form -->
+            <form method="post" style="margin-bottom:20px;">
                 {% csrf_token %}
-                <input type="hidden" name="ts_item_id" value="{{ item_obj.id }}">
+                <input type="hidden" name="ts_item_id" value="{% if item_obj %}{{ item_obj.id }}{% endif %}">
                 <label for="ts_price">Target Sell Price:</label>
                 <input type="number" step="0.01" name="target_sell_price" id="ts_price"
                        value="{% if target_obj %}{{ target_obj.target_sell_price }}{% else %}0{% endif %}">
                 <button type="submit" name="update_target_sell">Update Target Sell</button>
-              </form>
-            {% else %}
-              <p>Search for an item first to update accumulation/target prices.</p>
-            {% endif %}
+            </form>
 
             <div class="panel-title">Add Transaction</div>
             <form method="post">
                 {% csrf_token %}
-                {{ transaction_form.item_name }}
-                <br>
-                {{ transaction_form.trans_type }}
-                <br>
-                {{ transaction_form.price }}
-                <br>
-                {{ transaction_form.quantity }}
-                <br>
-                {{ transaction_form.date_of_holding }}
-                <br>
+                {{ transaction_form.item_name }}<br>
+                {{ transaction_form.trans_type }}<br>
+                {{ transaction_form.price }}<br>
+                {{ transaction_form.quantity }}<br>
+                {{ transaction_form.date_of_holding }}<br>
                 <button type="submit" name="add_transaction">Add Transaction</button>
             </form>
         </div>
