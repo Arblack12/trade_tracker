@@ -8,6 +8,7 @@ urlpatterns = [
     path('', views.index, name='index'),
     path('transactions/', views.transaction_list, name='transaction_list'),
     path('transaction/add/', views.transaction_add, name='transaction_add'),
+
     
     # ALIAS
     path('alias/', views.alias_list, name='alias_list'),

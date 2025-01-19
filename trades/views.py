@@ -75,8 +75,7 @@ def index(request):
             except TargetSellPrice.DoesNotExist:
                 tgt_price = None
 
-            # Optionally retrieve alias for an image path:
-            # (We look for an alias that exactly matches item’s name.)
+            # Optionally retrieve alias for an image path
             alias_entry = Alias.objects.filter(full_name=found_item.name).first()
             image_path = alias_entry.image_path if alias_entry else None
 
@@ -100,6 +99,123 @@ def index(request):
         'transactions': transactions,
     }
     return render(request, 'trades/index.html', context)
+
+
+def transaction_list(request):
+    """Show all transactions."""
+    transactions = Transaction.objects.all().select_related('item').order_by('-date_of_holding')
+    return render(request, 'trades/transaction_list.html', {
+        'transactions': transactions,
+    })
+
+
+def transaction_add(request):
+    """Add a new transaction."""
+    if request.method == 'POST':
+        form = TransactionForm(request.POST)
+        if form.is_valid():
+            trans = form.save()
+            messages.success(request, f"Transaction for {trans.item.name} added.")
+            calculate_fifo_profits()
+            return redirect('trades:transaction_list')
+    else:
+        form = TransactionForm()
+    return render(request, 'trades/transaction_add.html', {'form': form})
+
+
+def alias_list(request):
+    """Show all aliases."""
+    aliases = Alias.objects.all().order_by('full_name')
+    return render(request, 'trades/alias_list.html', {'aliases': aliases})
+
+
+def alias_add(request):
+    """Add or edit an alias."""
+    if request.method == 'POST':
+        form = AliasForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Alias saved!")
+            return redirect('trades:alias_list')
+    else:
+        form = AliasForm()
+    return render(request, 'trades/alias_add.html', {'form': form})
+
+
+def membership_list(request):
+    memberships = Membership.objects.all().order_by('account_name')
+    return render(request, 'trades/membership_list.html', {
+        'memberships': memberships,
+    })
+
+
+def watchlist_list(request):
+    watchlist_items = Watchlist.objects.all().order_by('-date_added')
+    return render(request, 'trades/watchlist_list.html', {
+        'watchlist_items': watchlist_items,
+    })
+
+
+def wealth_list(request):
+    wealth_records = WealthData.objects.all().order_by('year', 'account_name')
+    return render(request, 'trades/wealth_list.html', {
+        'wealth_records': wealth_records,
+    })
+
+
+def global_profit_chart(request):
+    """
+    Generates a PNG chart of global cumulative profit over time.
+    """
+    calculate_fifo_profits()
+    qs = Transaction.objects.all().order_by('date_of_holding', 'id')
+    if not qs.exists():
+        return HttpResponse("No transactions to chart.")
+
+    data = []
+    for tr in qs:
+        data.append({
+            'date': tr.date_of_holding,
+            'cumulative_profit': tr.cumulative_profit
+        })
+    df = pd.DataFrame(data)
+    df = df.groupby('date', as_index=False)['cumulative_profit'].last()
+
+    fig, ax = plt.subplots(figsize=(8,4))
+    ax.plot(df['date'], df['cumulative_profit'], color='blue')
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Cumulative Profit")
+    ax.yaxis.set_major_formatter(StrMethodFormatter('{x:,.0f}'))
+    ax.set_title("Global Cumulative Realized Profit Over Time")
+    fig.autofmt_xdate()
+
+    buf = io.BytesIO()
+    plt.tight_layout()
+    plt.savefig(buf, format='png')
+    plt.close(fig)
+    buf.seek(0)
+    return HttpResponse(buf.getvalue(), content_type='image/png')
+
+
+def account_page(request):
+    """
+    Simple placeholder for an 'Account' page, from which a user can request password reset.
+    """
+    return render(request, 'trades/account.html')
+
+
+def password_reset_request(request):
+    """
+    Simple form that takes an email and presumably triggers
+    some password reset logic. In a real project, tie into
+    Django's built-in password-reset flows.
+    """
+    if request.method == 'POST':
+        email = request.POST.get('email')
+        # Here you would run Django's reset logic or send an email, etc.
+        messages.success(request, f'Password reset instructions have been sent to {email}.')
+        return redirect('trades:account_page')
+    return render(request, 'trades/password_reset_request.html')
 
 
 def calculate_fifo_profits():
@@ -132,7 +248,7 @@ def calculate_fifo_profits():
                 qty_available = lot['qty']
                 used = min(qty_to_sell, qty_available)
 
-                # Example fee of 2% on sell side:
+                # Example fee of 2% on sell side (adjust as you wish)
                 partial_profit = (sell_price * used * 0.98) - (lot['price'] * used)
                 profit += partial_profit
 
@@ -142,7 +258,7 @@ def calculate_fifo_profits():
                 if lot['qty'] <= 0:
                     purchase_lots[item_id].pop(0)
 
-            # If qty_to_sell remains with no more lots, do what you need to handle that scenario.
+            # If qty_to_sell remains with no more lots, handle that scenario as needed
             trans.realised_profit = profit
 
         cumulative_sum += trans.realised_profit

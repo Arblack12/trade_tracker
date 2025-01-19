@@ -1,0 +1,47 @@
+<!-- trades/templates/trades/transaction_list.html -->
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>All Transactions</title>
+    <link rel="stylesheet" href="{% static 'trades/css/dark_theme.css' %}">
+</head>
+<body>
+<div class="container">
+    <h1>All Transactions</h1>
+
+    <p>
+      <a href="{% url 'trades:transaction_add' %}">Add Transaction</a>
+    </p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Item Name</th>
+                <th>Type</th>
+                <th>Price</th>
+                <th>Quantity</th>
+                <th>Date of Holding</th>
+                <th>Realised Profit</th>
+                <th>Cumulative Profit</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for t in transactions %}
+            <tr>
+                <td>{{ t.id }}</td>
+                <td>{{ t.item.name }}</td>
+                <td>{{ t.trans_type }}</td>
+                <td>{{ t.price|floatformat:2 }}</td>
+                <td>{{ t.quantity|floatformat:2 }}</td>
+                <td>{{ t.date_of_holding }}</td>
+                <td>{{ t.realised_profit|floatformat:2 }}</td>
+                <td>{{ t.cumulative_profit|floatformat:2 }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+</body>
+</html>
