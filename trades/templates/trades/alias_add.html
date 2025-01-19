@@ -1,19 +1,11 @@
-<!-- trades/templates/trades/alias_add.html -->
 {% load static %}
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Add Alias</title>
-    <link rel="stylesheet" href="{% static 'trades/css/dark_theme.css' %}">
+    <meta http-equiv="refresh" content="0; url={% url 'trades:alias_list' %}" />
+    <title>Redirecting...</title>
 </head>
 <body>
-<div class="container">
-    <h1>Add Alias</h1>
-    <form method="post" enctype="multipart/form-data">
-        {% csrf_token %}
-        {{ form.as_p }}
-        <button type="submit">Save</button>
-    </form>
-</div>
+Redirecting to Alias List...
 </body>
 </html>
