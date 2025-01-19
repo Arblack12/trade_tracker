@@ -2,10 +2,9 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>RS3 Transaction Tracker</title>
+    <title>Unified Homepage</title>
     <link rel="stylesheet" href="{% static 'trades/css/dark_theme.css' %}">
     <style>
-        /* A simple horizontal nav "tabs" style */
         .top-nav {
             background: #333;
             padding: 10px;
@@ -30,22 +29,23 @@
         .top-nav .tabs li a:hover {
             text-decoration: underline;
         }
-        /* Align the search form on the right */
         .search-form {
             margin-left: auto;
         }
-        .item-details {
-            margin-top: 20px;
-            padding: 10px;
-            background-color: #404040;
+        .container {
+            margin: 20px;
         }
-        .item-details img {
-            max-width: 120px;
-            display: block;
-            margin-bottom: 10px;
+        .section-block {
+            margin-bottom: 40px;
         }
-        .transactions-section {
-            margin-top: 30px;
+        table {
+            width: 100%;
+        }
+        th, td {
+            padding: 8px;
+        }
+        th {
+            text-align: left;
         }
     </style>
 </head>
@@ -55,7 +55,6 @@
 <div class="top-nav">
     <ul class="tabs">
         <li><a href="{% url 'trades:index' %}">Home</a></li>
-        <li><a href="{% url 'trades:transaction_list' %}">Transactions</a></li>
         <li><a href="{% url 'trades:alias_list' %}">Aliases</a></li>
         <li><a href="{% url 'trades:membership_list' %}">Membership</a></li>
         <li><a href="{% url 'trades:wealth_list' %}">Wealth</a></li>
@@ -64,7 +63,7 @@
         <li><a href="{% url 'trades:account_page' %}">Account</a></li>
     </ul>
 
-    <!-- ========== SEARCH FORM ========== -->
+    <!-- ========== SEARCH FORM (optional) ========== -->
     <form method="get" action="." class="search-form">
         <input type="text" name="search_item" placeholder="Search item name..." value="{{ search_query }}">
         <button type="submit">Search</button>
@@ -72,91 +71,87 @@
 </div>
 
 <div class="container">
-    <h1>RS3 Transaction Tracker</h1>
-    <p>
-        This page lets you search for an item (or its alias), see details, record new transactions,
-        and view transaction history—all in one place.
-    </p>
 
-    {% if item_details %}
-        <!-- ========== ITEM DETAILS SECTION ========== -->
-        <div class="item-details">
-            <h2>{{ item_details.name }}</h2>
-            
-            {% if item_details.image_path %}
-              <img src="{{ item_details.image_path }}" alt="Item image">
-            {% endif %}
-            
-            <p><strong>Current Price:</strong> 
-               {% if item_details.current_price %} 
-                  {{ item_details.current_price|floatformat:2 }}
-               {% else %}
-                  (No accumulation price set)
-               {% endif %}
-            </p>
-            <p><strong>Target Sell Price:</strong>
-               {% if item_details.target_sell_price %}
-                  {{ item_details.target_sell_price|floatformat:2 }}
-               {% else %}
-                  (No target sell price set)
-               {% endif %}
-            </p>
-        </div>
-
-        <!-- ========== TRANSACTION FORM FOR THIS ITEM ========== -->
-        <h3>Add Transaction</h3>
+    <!-- (1) TRANSACTION FORM -->
+    <div class="section-block">
+        <h2>Add Transaction</h2>
         <form method="post">
             {% csrf_token %}
-            <!-- 
-               By default, TransactionForm includes fields: item, trans_type, price, quantity, date_of_holding.
-               If you only want to add a transaction for the currently searched item,
-               you can hide the item field or override it. For now, let's keep it normal.
-            -->
             {{ transaction_form.as_p }}
-            <button type="submit">Save</button>
+            <button type="submit">Save Transaction</button>
         </form>
+    </div>
 
-        <!-- ========== TRANSACTION HISTORY (FOR THIS ITEM) ========== -->
-        <div class="transactions-section">
-            <h3>Transaction History for "{{ item_details.name }}"</h3>
-            {% if transactions %}
-                <table>
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Type</th>
-                            <th>Price</th>
-                            <th>Quantity</th>
-                            <th>Date</th>
-                            <th>Realised Profit</th>
-                            <th>Cumulative Profit</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                      {% for t in transactions %}
-                          <tr>
-                              <td>{{ t.id }}</td>
-                              <td>{{ t.trans_type }}</td>
-                              <td>{{ t.price|floatformat:2 }}</td>
-                              <td>{{ t.quantity|floatformat:2 }}</td>
-                              <td>{{ t.date_of_holding }}</td>
-                              <td>{{ t.realised_profit|floatformat:2 }}</td>
-                              <td>{{ t.cumulative_profit|floatformat:2 }}</td>
-                          </tr>
-                      {% endfor %}
-                    </tbody>
-                </table>
-            {% else %}
-                <p>No transactions found for this item.</p>
-            {% endif %}
-        </div>
-
-    {% else %}
-        <!-- If nothing is searched yet, or no item found, show a basic note. -->
-        <h2>Welcome!</h2>
-        <p>Use the search bar in the top-right corner to find an item by name or alias.</p>
+    <!-- (2) IF WE SEARCHED AN ITEM, SHOW ITEM'S TRANSACTIONS -->
+    {% if item_details %}
+      <div class="section-block">
+          <h2>Search Results for: {{ item_details.name }}</h2>
+          {% if item_transactions %}
+              <table>
+                  <thead>
+                      <tr>
+                          <th>ID</th>
+                          <th>Type</th>
+                          <th>Price</th>
+                          <th>Qty</th>
+                          <th>Date</th>
+                          <th>Realised Profit</th>
+                          <th>Cumulative Profit</th>
+                      </tr>
+                  </thead>
+                  <tbody>
+                  {% for t in item_transactions %}
+                      <tr>
+                          <td>{{ t.id }}</td>
+                          <td>{{ t.trans_type }}</td>
+                          <td>{{ t.price|floatformat:2 }}</td>
+                          <td>{{ t.quantity|floatformat:2 }}</td>
+                          <td>{{ t.date_of_holding }}</td>
+                          <td>{{ t.realised_profit|floatformat:2 }}</td>
+                          <td>{{ t.cumulative_profit|floatformat:2 }}</td>
+                      </tr>
+                  {% endfor %}
+                  </tbody>
+              </table>
+          {% else %}
+              <p>No transactions found for {{ item_details.name }}.</p>
+          {% endif %}
+      </div>
     {% endif %}
-</div>
 
+    <!-- (3) SHOW ALL TRANSACTIONS -->
+    <div class="section-block">
+        <h2>All Transactions</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Item Name</th>
+                    <th>Type</th>
+                    <th>Price</th>
+                    <th>Qty</th>
+                    <th>Date</th>
+                    <th>Realised Profit</th>
+                    <th>Cumulative Profit</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for t in all_transactions %}
+                <tr>
+                    <td>{{ t.id }}</td>
+                    <td>{{ t.item.name }}</td>
+                    <td>{{ t.trans_type }}</td>
+                    <td>{{ t.price|floatformat:2 }}</td>
+                    <td>{{ t.quantity|floatformat:2 }}</td>
+                    <td>{{ t.date_of_holding }}</td>
+                    <td>{{ t.realised_profit|floatformat:2 }}</td>
+                    <td>{{ t.cumulative_profit|floatformat:2 }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+</div>
 </body>
 </html>
