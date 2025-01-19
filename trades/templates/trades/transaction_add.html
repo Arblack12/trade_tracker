@@ -1,64 +1,19 @@
-<!-- trades/templates/trades/transaction_add.html -->
+{% load static %}
 <!DOCTYPE html>
 <html>
 <head>
     <title>Add Transaction</title>
+    <link rel="stylesheet" href="{% static 'trades/css/dark_theme.css' %}">
 </head>
 <body>
-    <h1>Add Transaction</h1>
 
-    <!-- 
-      If you use a Django ModelForm with fields like:
-        name, trans_type, price, quantity, date_of_holding
-      then form.as_p is simplest. Otherwise, you can
-      manually define the inputs as shown below.
-    -->
-
-    <!-- Example if using a ModelForm -->
-    <!--
+<div class="container">
+    <h1>Add Transaction (via ModelForm)</h1>
     <form method="post">
         {% csrf_token %}
         {{ form.as_p }}
         <button type="submit">Save</button>
     </form>
-    -->
+</div>
 
-    <!-- Example if you want to mirror the old Python GUI fields more explicitly -->
-    <form method="post">
-        {% csrf_token %}
-
-        <p>
-            <label for="id_name">Name:</label><br>
-            <input type="text" name="name" id="id_name" required>
-        </p>
-        
-        <p>
-            <label for="id_type">Type (Buy or Sell):</label><br>
-            <select name="trans_type" id="id_type">
-                <option value="Buy">Buy</option>
-                <option value="Sell">Sell</option>
-            </select>
-        </p>
-
-        <p>
-            <!-- In your old script, you multiplied the price by 1,000,000;
-                 you could hint that these are "millions" if that's still applicable. -->
-            <label for="id_price">Price:</label><br>
-            <input type="number" step="any" name="price" id="id_price" required>
-        </p>
-
-        <p>
-            <label for="id_quantity">Quantity:</label><br>
-            <input type="number" step="any" name="quantity" id="id_quantity" required>
-        </p>
-
-        <p>
-            <label for="id_date_of_holding">Date of Holding:</label><br>
-            <!-- You can default this to today's date if desired -->
-            <input type="date" name="date_of_holding" id="id_date_of_holding" required>
-        </p>
-
-        <button type="submit">Save</button>
-    </form>
-</body>
-</html>
+<hr>
