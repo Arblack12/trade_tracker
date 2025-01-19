@@ -1,0 +1,36 @@
+<!-- trades/templates/trades/alias_list.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Alias List</title>
+    <link rel="stylesheet" href="{% static 'trades/css/dark_theme.css' %}">
+</head>
+<body>
+<div class="container">
+    <h1>Alias List</h1>
+    <p>
+      <a href="{% url 'trades:alias_add' %}">Add Alias</a>
+    </p>
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Full Name</th>
+                <th>Short Name</th>
+                <th>Image Path</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for alias in aliases %}
+            <tr>
+                <td>{{ alias.id }}</td>
+                <td>{{ alias.full_name }}</td>
+                <td>{{ alias.short_name }}</td>
+                <td>{{ alias.image_path }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+</body>
+</html>

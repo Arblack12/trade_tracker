@@ -1,0 +1,18 @@
+<!-- trades/templates/trades/alias_add.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Add Alias</title>
+    <link rel="stylesheet" href="{% static 'trades/css/dark_theme.css' %}">
+</head>
+<body>
+<div class="container">
+    <h1>Add Alias</h1>
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Save</button>
+    </form>
+</div>
+</body>
+</html>

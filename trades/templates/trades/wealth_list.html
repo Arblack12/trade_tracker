@@ -1,0 +1,53 @@
+<!-- trades/templates/trades/wealth_list.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Wealth Data</title>
+    <link rel="stylesheet" href="{% static 'trades/css/dark_theme.css' %}">
+</head>
+<body>
+<div class="container">
+    <h1>Wealth Data</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>Account Name</th>
+                <th>Year</th>
+                <th>Jan</th>
+                <th>Feb</th>
+                <th>Mar</th>
+                <th>Apr</th>
+                <th>May</th>
+                <th>Jun</th>
+                <th>Jul</th>
+                <th>Aug</th>
+                <th>Sep</th>
+                <th>Oct</th>
+                <th>Nov</th>
+                <th>Dec</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for w in wealth_records %}
+            <tr>
+                <td>{{ w.account_name }}</td>
+                <td>{{ w.year }}</td>
+                <td>{{ w.january }}</td>
+                <td>{{ w.february }}</td>
+                <td>{{ w.march }}</td>
+                <td>{{ w.april }}</td>
+                <td>{{ w.may }}</td>
+                <td>{{ w.june }}</td>
+                <td>{{ w.july }}</td>
+                <td>{{ w.august }}</td>
+                <td>{{ w.september }}</td>
+                <td>{{ w.october }}</td>
+                <td>{{ w.november }}</td>
+                <td>{{ w.december }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+</body>
+</html>

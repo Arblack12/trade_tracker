@@ -1,0 +1,17 @@
+<!-- trades/templates/trades/account.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Account Page</title>
+    <link rel="stylesheet" href="{% static 'trades/css/dark_theme.css' %}">
+</head>
+<body>
+<div class="container">
+    <h1>Account Page</h1>
+    <p>
+      <!-- Link to request a password reset -->
+      <a href="{% url 'trades:password_reset_request' %}">Request Password Reset</a>
+    </p>
+</div>
+</body>
+</html>

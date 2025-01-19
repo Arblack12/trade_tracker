@@ -1,0 +1,33 @@
+<!-- trades/templates/trades/membership_list.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Membership List</title>
+    <link rel="stylesheet" href="{% static 'trades/css/dark_theme.css' %}">
+</head>
+<body>
+<div class="container">
+    <h1>Membership List</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Account Name</th>
+                <th>Status</th>
+                <th>Membership End Date</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for m in memberships %}
+            <tr>
+                <td>{{ m.id }}</td>
+                <td>{{ m.account_name }}</td>
+                <td>{{ m.membership_status }}</td>
+                <td>{{ m.membership_end_date }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+</body>
+</html>

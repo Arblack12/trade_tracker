@@ -1,0 +1,43 @@
+<!-- trades/templates/trades/watchlist_list.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Watchlist</title>
+    <link rel="stylesheet" href="{% static 'trades/css/dark_theme.css' %}">
+</head>
+<body>
+<div class="container">
+    <h1>Watchlist</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Desired Price</th>
+                <th>Buy/Sell</th>
+                <th>Account Name</th>
+                <th>Wished Quantity</th>
+                <th>Total Value</th>
+                <th>Current Holding</th>
+                <th>Date Added</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for item in watchlist_items %}
+            <tr>
+                <td>{{ item.id }}</td>
+                <td>{{ item.name }}</td>
+                <td>{{ item.desired_price }}</td>
+                <td>{{ item.buy_or_sell }}</td>
+                <td>{{ item.account_name }}</td>
+                <td>{{ item.wished_quantity }}</td>
+                <td>{{ item.total_value }}</td>
+                <td>{{ item.current_holding }}</td>
+                <td>{{ item.date_added }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+</body>
+</html>

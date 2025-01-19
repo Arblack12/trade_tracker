@@ -21,7 +21,6 @@ from .forms import (
     TargetSellPriceForm, MembershipForm, WealthDataForm, WatchlistForm
 )
 
-# =========== SIMPLE HOME PAGE ===========
 def index(request):
     return render(request, 'trades/index.html')
 
@@ -39,12 +38,9 @@ def transaction_add(request):
         form = TransactionForm(request.POST)
         if form.is_valid():
             trans = form.save(commit=False)
-            # Optionally multiply price by 1_000_000 if that’s your convention
-            # trans.price = trans.price * 1_000_000
             trans.save()
             messages.success(request, f"Transaction for {trans.item.name} added.")
-            # After adding, recalc FIFO profits globally
-            calculate_fifo_profits()
+            calculate_fifo_profits()  # Recalculate FIFO after saving
             return redirect('trades:transaction_list')
     else:
         form = TransactionForm()
@@ -52,17 +48,14 @@ def transaction_add(request):
 
 def calculate_fifo_profits():
     """
-    A rough example to mimic your FIFO logic across all items.
-    Overwrites each Transaction's realized_profit & cumulative_profit columns.
+    A rough FIFO logic that overwrites each Transaction's realized_profit
+    & cumulative_profit. Adjust as needed for your rules/taxes, etc.
     """
-
-    # Reset everything first
+    # Reset everything
     Transaction.objects.all().update(realised_profit=0.0, cumulative_profit=0.0)
 
-    # Sort by date, then by type Buy first
     all_trans = Transaction.objects.all().order_by('date_of_holding', 'trans_type', 'id')
-
-    purchase_lots = {}  # { item_id: [ {qty,price}, ... ] }
+    purchase_lots = {}  # { item_id: [ {qty, price}, ... ] }
     cumulative_sum = 0.0
 
     for trans in all_trans:
@@ -83,8 +76,7 @@ def calculate_fifo_profits():
                 qty_available = lot['qty']
                 used = min(qty_to_sell, qty_available)
 
-                # your formula: (sell_price * used * 0.98) - (lot['price'] * used)
-                # or whichever approach you want
+                # Example fee of 2% on sell side:
                 partial_profit = (sell_price * used * 0.98) - (lot['price'] * used)
                 profit += partial_profit
 
@@ -94,9 +86,8 @@ def calculate_fifo_profits():
                 if lot['qty'] <= 0:
                     purchase_lots[item_id].pop(0)
 
-            # If still qty_to_sell > 0, no more lots => purely profit from ??? (You can decide how to handle)
+            # If qty_to_sell remains, no more lots => handle as you see fit
             if qty_to_sell > 0:
-                # some logic, e.g. profit += (sell_price * qty_to_sell * 0.98)
                 pass
 
             trans.realised_profit = profit
@@ -105,14 +96,11 @@ def calculate_fifo_profits():
         trans.cumulative_profit = cumulative_sum
         trans.save()
 
-
 # =========== ALIASES ===========
 def alias_list(request):
     """Show all aliases."""
     aliases = Alias.objects.all().order_by('full_name')
-    return render(request, 'trades/alias_list.html', {
-        'aliases': aliases,
-    })
+    return render(request, 'trades/alias_list.html', {'aliases': aliases})
 
 def alias_add(request):
     """Add or edit an alias."""
@@ -129,8 +117,6 @@ def alias_add(request):
 
 # =========== WEALTH DATA ===========
 def wealth_list(request):
-    """Display or handle wealth data. For now, just a list + form example."""
-    # If you want to filter by year, do so, or just show everything
     wealth_records = WealthData.objects.all().order_by('year','account_name')
     return render(request, 'trades/wealth_list.html', {
         'wealth_records': wealth_records,
@@ -153,23 +139,14 @@ def watchlist_list(request):
     })
 
 
-# =========== GLOBAL PROFIT CHART (example) ===========
+# =========== GLOBAL PROFIT CHART ===========
 def global_profit_chart(request):
-    """
-    Example of rendering your global cumulative profit in a chart using matplotlib.
-    We'll collect all transactions, sorted by date. Then plot the cumulative_profit.
-    Return as a PNG image via HttpResponse.
-    """
-    # Make sure FIFO is up-to-date
     calculate_fifo_profits()
-
     qs = Transaction.objects.all().order_by('date_of_holding', 'id')
     if not qs.exists():
         return HttpResponse("No transactions to chart.")
 
-    # Build a small dataframe
     data = []
-    cum_val = 0.0
     for tr in qs:
         data.append({
             'date': tr.date_of_holding,
@@ -193,3 +170,23 @@ def global_profit_chart(request):
     buf.seek(0)
 
     return HttpResponse(buf.getvalue(), content_type='image/png')
+
+# =========== NEW: ACCOUNT PAGE & PASSWORD RESET ===========
+def account_page(request):
+    """
+    Simple placeholder for an 'Account' page, from which a user can request password reset.
+    """
+    return render(request, 'trades/account.html')
+
+def password_reset_request(request):
+    """
+    Simple form that takes an email and presumably triggers
+    some password reset logic. In a real project, tie into
+    Django's built-in password-reset flows.
+    """
+    if request.method == 'POST':
+        email = request.POST.get('email')
+        # Here you would run Django's reset logic or send an email, etc.
+        messages.success(request, f'Password reset instructions have been sent to {email}.')
+        return redirect('trades:account_page')
+    return render(request, 'trades/password_reset_request.html')
