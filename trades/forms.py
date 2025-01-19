@@ -19,13 +19,14 @@ class TransactionManualItemForm(forms.Form):
 
     def save(self):
         """
-        Look up or create an `Item` by matching either the alias short_name or item name.
-        Then create a new Transaction.
+        Interpret price & quantity as 'millions'. E.g. if user enters 52.6,
+        we store 52,600,000 in the DB.
         """
         name_input = self.cleaned_data['item_name'].strip()
         trans_type = self.cleaned_data['trans_type']
-        price = self.cleaned_data['price']
-        quantity = self.cleaned_data['quantity']
+        # Convert to millions
+        price = self.cleaned_data['price'] * 1_000_000
+        quantity = self.cleaned_data['quantity'] * 1_000_000
         date_of_holding = self.cleaned_data['date_of_holding']
 
         alias = Alias.objects.filter(short_name__iexact=name_input).first()
@@ -54,7 +55,8 @@ class TransactionManualItemForm(forms.Form):
 class TransactionEditForm(forms.Form):
     """
     A form for editing an existing Transaction, allowing the user to change
-    item name, type, price, quantity, and date.
+    item name, type, price, quantity, and date. We also treat user-entered
+    price/quantity in "millions" for consistency with TransactionManualItemForm.
     """
     transaction_id = forms.IntegerField(widget=forms.HiddenInput())
     item_name = forms.CharField(label="Item Name", max_length=200)
@@ -64,18 +66,19 @@ class TransactionEditForm(forms.Form):
     date_of_holding = forms.DateField()
 
     def load_initial(self, transaction):
-        """Populate initial values from the given Transaction object."""
+        """Populate initial values from the given Transaction object, dividing by 1,000,000 to show 'millions'."""
         self.fields['transaction_id'].initial = transaction.id
         self.fields['item_name'].initial = transaction.item.name
         self.fields['trans_type'].initial = transaction.trans_type
-        self.fields['price'].initial = transaction.price
-        self.fields['quantity'].initial = transaction.quantity
+        # Convert DB-stored price/qty into 'millions'
+        self.fields['price'].initial = transaction.price / 1_000_000.0
+        self.fields['quantity'].initial = transaction.quantity / 1_000_000.0
         self.fields['date_of_holding'].initial = transaction.date_of_holding
 
     def update_transaction(self):
         """
-        Updates the existing Transaction with new data.  If the user changes
-        the item name, we do the same alias→item logic as in the manual form.
+        Updates the existing Transaction with new data, again converting
+        user-entered millions back to the full integer (e.g. 52.6 -> 52,600,000).
         """
         from .models import Transaction, Alias, Item
 
@@ -84,8 +87,8 @@ class TransactionEditForm(forms.Form):
 
         name_input = self.cleaned_data['item_name'].strip()
         trans_type = self.cleaned_data['trans_type']
-        price = self.cleaned_data['price']
-        quantity = self.cleaned_data['quantity']
+        price = self.cleaned_data['price'] * 1_000_000
+        quantity = self.cleaned_data['quantity'] * 1_000_000
         date_of_holding = self.cleaned_data['date_of_holding']
 
         # Same alias logic:
@@ -122,15 +125,18 @@ class AccumulationPriceForm(forms.ModelForm):
         model = AccumulationPrice
         fields = ['item', 'accumulation_price']
 
+
 class TargetSellPriceForm(forms.ModelForm):
     class Meta:
         model = TargetSellPrice
         fields = ['item', 'target_sell_price']
 
+
 class MembershipForm(forms.ModelForm):
     class Meta:
         model = Membership
         fields = ['account_name', 'membership_status', 'membership_end_date']
+
 
 class WealthDataForm(forms.ModelForm):
     class Meta:
@@ -139,6 +145,7 @@ class WealthDataForm(forms.ModelForm):
             'account_name', 'year', 'january','february','march','april','may',
             'june','july','august','september','october','november','december'
         ]
+
 
 class WatchlistForm(forms.ModelForm):
     class Meta:

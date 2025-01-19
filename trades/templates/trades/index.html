@@ -26,14 +26,29 @@
         .left-panel, .right-panel {
             flex: 1; border: 1px solid #444; padding: 15px;
         }
-        .panel-title {
-            font-size: 1.2em; margin-bottom: 10px; font-weight: bold;
-        }
         .item-image {
-            max-width: 150px; max-height: 150px; margin-bottom: 10px;
+            max-width: 150px; 
+            max-height: 150px; 
+            margin-bottom: 10px;
         }
         .field-label {
-            font-weight: bold; width: 120px; display: inline-block;
+            font-weight: bold; 
+            width: 120px; 
+            display: inline-block;
+        }
+
+        /* Make the accum/target forms line up nicely */
+        .accum-target-form {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        .accum-target-form label {
+            width: 150px;
+        }
+        .accum-target-form input[type="number"] {
+            width: 100px;
         }
     </style>
 </head>
@@ -48,7 +63,7 @@
             <li><a href="{% url 'trades:membership_list' %}">Membership</a></li>
             <li><a href="{% url 'trades:wealth_list' %}">Wealth</a></li>
             <li><a href="{% url 'trades:watchlist_list' %}">Watchlist</a></li>
-            <!-- Profit Chart link removed as requested -->
+            <!-- Profit Chart link omitted as requested -->
             <li><a href="{% url 'trades:account_page' %}">Account</a></li>
         </ul>
     </div>
@@ -68,7 +83,7 @@
             <button type="submit">Search</button>
         </form>
 
-        <!-- Buttons for chart (as in your existing design) -->
+        <!-- Buttons for chart (kept as example) -->
         <a href="{% url 'trades:global_profit_chart' %}" style="margin-left:10px;">
             <button>Generate Chart</button>
         </a>
@@ -78,25 +93,24 @@
     </div>
 
     <div class="content-row">
-        <!-- LEFT PANEL: item details -->
+        <!-- LEFT PANEL: item image & info -->
         <div class="left-panel">
-            <div class="panel-title">Item Details</div>
-            {% if item_image_url %}
-                <img src="{{ item_image_url }}" alt="Item Image" class="item-image">
-            {% endif %}
-            {% if item_obj %}
-                <h2>{{ item_obj.name }}</h2>
-            {% else %}
-                <h2>(No item selected)</h2>
-            {% endif %}
+            <!-- REMOVE "Item Details:" heading, center image+name -->
+            <div style="text-align:center;">
+                {% if item_image_url %}
+                    <img src="{{ item_image_url }}" alt="Item Image" class="item-image">
+                {% endif %}
+                {% if item_obj %}
+                    <h2>{{ item_obj.name }}</h2>
+                {% else %}
+                    <h2>(No item selected)</h2>
+                {% endif %}
+            </div>
 
             <p><span class="field-label">Current Price:</span> 
                {% if item_transactions|length > 0 %}{{ item_transactions.0.price|floatformat:0 }}{% else %}0{% endif %}</p>
 
             <p><span class="field-label">Target Price:</span> 
-               {% if target_obj %}{{ target_obj.target_sell_price|floatformat:0 }}{% else %}0{% endif %}</p>
-
-            <p><span class="field-label">Target Sell Price:</span>
                {% if target_obj %}{{ target_obj.target_sell_price|floatformat:0 }}{% else %}0{% endif %}</p>
 
             <p><span class="field-label">Average Sold Price:</span> {{ avg_sold_price|floatformat:0 }}</p>
@@ -116,37 +130,54 @@
                {% if item_transactions|length > 0 %}{{ item_transactions.0.date_of_holding }}{% else %}-{% endif %}</p>
         </div>
 
-        <!-- RIGHT PANEL: Update Accum/Target + Add Transaction -->
+        <!-- RIGHT PANEL: Accum/Target forms + Add Transaction -->
         <div class="right-panel">
-            <div class="panel-title">Update Accum/Target</div>
+            <!-- We remove the "Update Accum/Target" heading -->
+            
             <!-- Accumulation form -->
-            <form method="post" style="margin-bottom:10px;">
+            <form method="post" class="accum-target-form">
                 {% csrf_token %}
                 <input type="hidden" name="acc_item_id" value="{% if item_obj %}{{ item_obj.id }}{% endif %}">
                 <label for="acc_price">Accumulation Price:</label>
                 <input type="number" step="0.01" name="accumulation_price" id="acc_price"
                        value="{% if accumulation_obj %}{{ accumulation_obj.accumulation_price }}{% else %}0{% endif %}">
-                <button type="submit" name="update_accumulation">Update Accumulation</button>
+                <button type="submit" name="update_accumulation">Update</button>
             </form>
 
             <!-- Target Sell Price form -->
-            <form method="post" style="margin-bottom:20px;">
+            <form method="post" class="accum-target-form">
                 {% csrf_token %}
                 <input type="hidden" name="ts_item_id" value="{% if item_obj %}{{ item_obj.id }}{% endif %}">
                 <label for="ts_price">Target Sell Price:</label>
                 <input type="number" step="0.01" name="target_sell_price" id="ts_price"
                        value="{% if target_obj %}{{ target_obj.target_sell_price }}{% else %}0{% endif %}">
-                <button type="submit" name="update_target_sell">Update Target Sell</button>
+                <button type="submit" name="update_target_sell">Update</button>
             </form>
 
-            <div class="panel-title">Add Transaction</div>
-            <form method="post">
+            <!-- Add Transaction form (labels + alignment) -->
+            <h3>Add Transaction</h3>
+            <form method="post" style="display:flex; flex-direction:column; gap:8px;">
                 {% csrf_token %}
-                {{ transaction_form.item_name }}<br>
-                {{ transaction_form.trans_type }}<br>
-                {{ transaction_form.price }}<br>
-                {{ transaction_form.quantity }}<br>
-                {{ transaction_form.date_of_holding }}<br>
+                <div>
+                    <label>Item Name:</label><br>
+                    {{ transaction_form.item_name }}
+                </div>
+                <div>
+                    <label>Type:</label><br>
+                    {{ transaction_form.trans_type }}
+                </div>
+                <div>
+                    <label>Price (in millions):</label><br>
+                    {{ transaction_form.price }}
+                </div>
+                <div>
+                    <label>Quantity (in millions):</label><br>
+                    {{ transaction_form.quantity }}
+                </div>
+                <div>
+                    <label>Date:</label><br>
+                    {{ transaction_form.date_of_holding }}
+                </div>
                 <button type="submit" name="add_transaction">Add Transaction</button>
             </form>
         </div>
@@ -194,29 +225,29 @@
     {% if edit_form %}
         <hr>
         <h2>Edit Transaction</h2>
-        <form method="post">
+        <form method="post" style="display:flex; flex-direction:column; gap:8px;">
             {% csrf_token %}
             {{ edit_form.transaction_id }}
-            <p>
+            <div>
               <label>Item Name:</label><br>
               {{ edit_form.item_name }}
-            </p>
-            <p>
+            </div>
+            <div>
               <label>Type:</label><br>
               {{ edit_form.trans_type }}
-            </p>
-            <p>
-              <label>Price:</label><br>
+            </div>
+            <div>
+              <label>Price (in millions):</label><br>
               {{ edit_form.price }}
-            </p>
-            <p>
-              <label>Quantity:</label><br>
+            </div>
+            <div>
+              <label>Quantity (in millions):</label><br>
               {{ edit_form.quantity }}
-            </p>
-            <p>
+            </div>
+            <div>
               <label>Date:</label><br>
               {{ edit_form.date_of_holding }}
-            </p>
+            </div>
             <button type="submit" name="update_transaction">Update Transaction</button>
         </form>
     {% endif %}

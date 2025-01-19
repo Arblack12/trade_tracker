@@ -7,15 +7,34 @@
     <style>
         .top-nav { margin-bottom: 20px; }
         .top-nav .nav-buttons {
-            list-style: none; display: flex; gap: 10px; padding: 0; margin: 0;
+            list-style: none; 
+            display: flex; 
+            gap: 10px; 
+            padding: 0; 
+            margin: 0;
         }
         .top-nav .nav-buttons li a {
-            background-color: #008c5f; color: #fff; padding: 10px 20px;
-            text-decoration: none; border-radius: 4px; font-weight: bold;
+            background-color: #008c5f; 
+            color: #fff; 
+            padding: 10px 20px;
+            text-decoration: none; 
+            border-radius: 4px; 
+            font-weight: bold;
             display: inline-block;
         }
         .top-nav .nav-buttons li a:hover {
             background-color: #00a874;
+        }
+        .letter-filter {
+            margin-bottom: 10px;
+        }
+        .letter-filter a {
+            margin-right: 5px;
+        }
+        .thumb-img {
+            width: 20px;
+            height: 20px;
+            vertical-align: middle;
         }
     </style>
 </head>
@@ -63,6 +82,16 @@
 
     <hr>
 
+    <!-- SORT BY LETTER / FILTER LINKS -->
+    <div class="letter-filter">
+      <strong>Filter by letter:</strong>
+      {% for l in letters %}
+        <a href="?letter={{ l }}">{{ l }}</a>
+      {% endfor %}
+      <!-- link to show ALL again -->
+      <a href="?letter=">All</a>
+    </div>
+
     <!-- ALIAS LIST -->
     <h2>Alias List</h2>
     <table>
@@ -71,7 +100,7 @@
                 <th>ID</th>
                 <th>Full Name</th>
                 <th>Short Name</th>
-                <th>Image File</th>
+                <th>Image</th>
                 <th>Actions</th>
             </tr>
         </thead>
@@ -83,7 +112,9 @@
                 <td>{{ alias.short_name }}</td>
                 <td>
                     {% if alias.image_file %}
-                       <a href="{{ alias.image_file.url }}" target="_blank">View</a>
+                       <a href="{{ alias.image_file.url }}" target="_blank">
+                           <img src="{{ alias.image_file.url }}" class="thumb-img" alt="thumb">
+                       </a>
                     {% endif %}
                 </td>
                 <td>

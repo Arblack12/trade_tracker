@@ -30,7 +30,7 @@ def index(request):
       - Search, timeframe
       - Item details panel
       - Forms to update accumulation/target-sell
-      - Add transaction form (redirects with ?search= the new item)
+      - Add transaction form
       - Edit/delete transaction form at the bottom
     """
     timeframe = request.GET.get('timeframe', 'Daily')
@@ -125,7 +125,7 @@ def index(request):
                 messages.error(request, "Error updating transaction.")
                 edit_form = ef
 
-    # If GET or we have form errors, we proceed:
+    # If GET or we have form errors, proceed:
     transaction_form = TransactionManualItemForm()
 
     # Perform an optional item search
@@ -215,6 +215,7 @@ def alias_list(request):
       - Adding a new Alias
       - Editing an existing Alias
       - Listing all Aliases
+      - Now also filtering by first letter of short_name if requested
     """
     edit_alias = None
     if 'edit_id' in request.GET:
@@ -243,11 +244,21 @@ def alias_list(request):
         else:
             form = AliasForm()
 
-    aliases = Alias.objects.all().order_by('full_name')
+    # "Sort by letter" logic:
+    letter = request.GET.get('letter', '')
+    if letter:
+        aliases = Alias.objects.filter(short_name__istartswith=letter).order_by('short_name')
+    else:
+        aliases = Alias.objects.all().order_by('short_name')
+
+    # Provide a list of letters A-Z to filter
+    letters = [chr(i) for i in range(ord('A'), ord('Z') + 1)]
+
     return render(request, 'trades/alias_list.html', {
         'form': form,
         'aliases': aliases,
         'edit_alias': edit_alias,
+        'letters': letters,
     })
 
 
@@ -364,11 +375,11 @@ def calculate_fifo_profits():
             sell_price = trans.price
             profit = 0.0
 
+            # Example fee of 2% (arbitrary example from earlier code)
             while qty_to_sell > 0 and purchase_lots[item_id]:
                 lot = purchase_lots[item_id][0]
                 used = min(qty_to_sell, lot['qty'])
 
-                # Example fee of 2%
                 partial_profit = (sell_price * used * 0.98) - (lot['price'] * used)
                 profit += partial_profit
 
