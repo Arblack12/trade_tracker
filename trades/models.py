@@ -10,9 +10,12 @@ class Alias(models.Model):
     full_name = models.CharField(max_length=200, unique=False)
     short_name = models.CharField(max_length=100, blank=True)
     image_path = models.CharField(max_length=300, blank=True)
+    # NEW: actual image upload:
+    image_file = models.ImageField(upload_to='aliases/', blank=True, null=True)
 
     def __str__(self):
         return f"{self.short_name} -> {self.full_name}"
+
 
 class Item(models.Model):
     """
