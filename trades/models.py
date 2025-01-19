@@ -2,6 +2,7 @@
 
 from django.db import models
 from django.utils import timezone
+from django.contrib.auth.models import User  # <-- NEW import, otherwise unchanged
 
 class Alias(models.Model):
     """
@@ -34,6 +35,10 @@ class Transaction(models.Model):
         (BUY, 'Buy'),
         (SELL, 'Sell'),
     ]
+
+    # <-- NEW FIELD: links Transaction to a Django user (optional / can be null)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+
     item = models.ForeignKey(Item, on_delete=models.CASCADE)
     trans_type = models.CharField(max_length=4, choices=TYPE_CHOICES, default=BUY)
     price = models.FloatField()
@@ -47,6 +52,7 @@ class Transaction(models.Model):
     def __str__(self):
         return f"{self.item.name} {self.trans_type} {self.quantity} @ {self.price}"
 
+
 class AccumulationPrice(models.Model):
     """
     Stores accumulation price per item.
@@ -56,6 +62,7 @@ class AccumulationPrice(models.Model):
 
     def __str__(self):
         return f"{self.item.name} Acc. Price = {self.accumulation_price}"
+
 
 class TargetSellPrice(models.Model):
     """
@@ -67,6 +74,7 @@ class TargetSellPrice(models.Model):
     def __str__(self):
         return f"{self.item.name} Target Sell = {self.target_sell_price}"
 
+
 class Membership(models.Model):
     """
     Tracks membership info (like 'Yes'/'No' + end date) per account.
@@ -77,6 +85,7 @@ class Membership(models.Model):
 
     def __str__(self):
         return f"{self.account_name} -> {self.membership_status}"
+
 
 class WealthData(models.Model):
     """
@@ -101,6 +110,7 @@ class WealthData(models.Model):
 
     def __str__(self):
         return f"{self.account_name} {self.year}"
+
 
 class Watchlist(models.Model):
     """

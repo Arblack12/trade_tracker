@@ -10,6 +10,9 @@ from django.db.models import Sum, Avg
 from django.utils import timezone
 from django.urls import reverse
 from django.utils.http import urlencode
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth import login, authenticate, logout
+from django.contrib.auth.models import User
 
 from matplotlib import pyplot as plt
 from matplotlib.ticker import StrMethodFormatter
@@ -26,25 +29,24 @@ from .forms import (
 
 def index(request):
     """
-    Unified homepage, now with:
-      - Search, timeframe
-      - Item details panel
-      - Forms to update accumulation/target-sell
-      - Add transaction form
-      - Edit/delete transaction form at the bottom
+    Unified homepage.
+    Only shows the transactions belonging to the logged-in user (if authenticated).
     """
-    timeframe = request.GET.get('timeframe', 'Daily')
+    if not request.user.is_authenticated:
+        # Force user to sign in before viewing the site:
+        return redirect('trades:login_view')
 
-    # Handle editing an existing transaction if ?edit_trans=ID
+    timeframe = request.GET.get('timeframe', 'Daily')
     edit_form = None
+
     if 'edit_trans' in request.GET:
         try:
             t_id = int(request.GET['edit_trans'])
-            t_obj = Transaction.objects.get(id=t_id)
+            t_obj = Transaction.objects.get(id=t_id, user=request.user)
             form = TransactionEditForm()
             form.load_initial(t_obj)
             edit_form = form
-        except:
+        except Transaction.DoesNotExist:
             pass
 
     if request.method == 'POST':
@@ -52,7 +54,7 @@ def index(request):
         if 'add_transaction' in request.POST:
             tform = TransactionManualItemForm(request.POST)
             if tform.is_valid():
-                new_trans = tform.save()
+                new_trans = tform.save(user=request.user)  # attach user
                 messages.success(request, f"Transaction for {new_trans.item.name} added successfully!")
                 calculate_fifo_profits()
                 # Redirect with ?search=<item_name> so that item info is shown
@@ -97,7 +99,7 @@ def index(request):
             t_id = request.POST.get('transaction_id')
             if t_id:
                 try:
-                    t_obj = Transaction.objects.get(id=t_id)
+                    t_obj = Transaction.objects.get(id=t_id, user=request.user)
                     item_name = t_obj.item.name
                     t_obj.delete()
                     messages.success(request, "Transaction deleted.")
@@ -107,14 +109,14 @@ def index(request):
                     qs = urlencode({'search': item_name})
                     return redirect(f"{url}?{qs}")
                 except Transaction.DoesNotExist:
-                    messages.error(request, "Transaction not found for deletion.")
+                    messages.error(request, "Transaction not found or not owned by you.")
             return redirect('trades:index')
 
         # UPDATE (EDIT) a transaction
         elif 'update_transaction' in request.POST:
             ef = TransactionEditForm(request.POST)
             if ef.is_valid():
-                updated_trans = ef.update_transaction()
+                updated_trans = ef.update_transaction(user=request.user)
                 messages.success(request, "Transaction updated.")
                 calculate_fifo_profits()
                 # Redirect with ?search=the updated item name
@@ -155,13 +157,15 @@ def index(request):
             item_obj = Item.objects.filter(name__iexact=search_query).first()
 
         if item_obj:
+            # If we found an item, get the alias if not already found
             if item_alias is None:
                 item_alias = Alias.objects.filter(full_name__iexact=item_obj.name).first()
 
             accumulation_obj = AccumulationPrice.objects.filter(item=item_obj).first()
             target_obj = TargetSellPrice.objects.filter(item=item_obj).first()
 
-            item_transactions = Transaction.objects.filter(item=item_obj).order_by('-date_of_holding')
+            # Show only this user's transactions for the item
+            item_transactions = Transaction.objects.filter(item=item_obj, user=request.user).order_by('-date_of_holding')
 
             sells = item_transactions.filter(trans_type='Sell')
             total_sold = sells.aggregate(sold_sum=Sum('quantity'))['sold_sum'] or 0
@@ -173,19 +177,23 @@ def index(request):
                 avg_sold_price = sells.aggregate(avg_price=Avg('price'))['avg_price'] or 0
 
             item_profit = item_transactions.aggregate(item_profit_sum=Sum('realised_profit'))['item_profit_sum'] or 0
-            global_realised_profit = Transaction.objects.aggregate(total=Sum('realised_profit'))['total'] or 0
+
+            # Global profit for *this user* only
+            global_realised_profit = Transaction.objects.filter(user=request.user).aggregate(
+                total=Sum('realised_profit')
+            )['total'] or 0
 
             if item_alias and item_alias.image_file:
                 item_image_url = item_alias.image_file.url
         else:
             messages.warning(request, f"No item or alias found matching '{search_query}'.")
 
-    # Show all transactions in bottom table
-    all_transactions = Transaction.objects.all().order_by('-date_of_holding')
+    # Show *this user's* transactions in the bottom table
+    all_transactions = Transaction.objects.filter(user=request.user).order_by('-date_of_holding')
 
     context = {
         'transaction_form': transaction_form,
-        'edit_form': edit_form,  # form for editing a transaction, if any
+        'edit_form': edit_form,
         'timeframe': timeframe,
         'search_query': search_query,
 
@@ -203,27 +211,22 @@ def index(request):
         'global_realised_profit': global_realised_profit,
         'item_image_url': item_image_url,
 
-        # all transactions
+        # user-specific transactions
         'all_transactions': all_transactions,
     }
     return render(request, 'trades/index.html', context)
 
 
 def alias_list(request):
-    """
-    A single page for:
-      - Adding a new Alias
-      - Editing an existing Alias
-      - Listing all Aliases
-      - Now also filtering by first letter of short_name if requested
-    """
+    if not request.user.is_authenticated:
+        return redirect('trades:login_view')
+
     edit_alias = None
     if 'edit_id' in request.GET:
         edit_id = request.GET['edit_id']
         edit_alias = get_object_or_404(Alias, id=edit_id)
 
     if request.method == 'POST':
-        # If alias_id is present, we are updating that alias; otherwise new
         alias_id = request.POST.get('alias_id', '')
         if alias_id:
             alias_obj = get_object_or_404(Alias, id=alias_id)
@@ -238,20 +241,17 @@ def alias_list(request):
         else:
             messages.error(request, "Error saving alias.")
     else:
-        # GET request
         if edit_alias:
             form = AliasForm(instance=edit_alias)
         else:
             form = AliasForm()
 
-    # "Sort by letter" logic:
     letter = request.GET.get('letter', '')
     if letter:
         aliases = Alias.objects.filter(short_name__istartswith=letter).order_by('short_name')
     else:
         aliases = Alias.objects.all().order_by('short_name')
 
-    # Provide a list of letters A-Z to filter
     letters = [chr(i) for i in range(ord('A'), ord('Z') + 1)]
 
     return render(request, 'trades/alias_list.html', {
@@ -263,13 +263,15 @@ def alias_list(request):
 
 
 def alias_add(request):
-    """
-    Old URL for adding an alias. Now simply redirect to alias_list to unify both.
-    """
+    if not request.user.is_authenticated:
+        return redirect('trades:login_view')
     return redirect('trades:alias_list')
 
 
 def membership_list(request):
+    if not request.user.is_authenticated:
+        return redirect('trades:login_view')
+
     memberships = Membership.objects.all().order_by('account_name')
     return render(request, 'trades/membership_list.html', {
         'memberships': memberships,
@@ -277,6 +279,9 @@ def membership_list(request):
 
 
 def watchlist_list(request):
+    if not request.user.is_authenticated:
+        return redirect('trades:login_view')
+
     watchlist_items = Watchlist.objects.all().order_by('-date_added')
     return render(request, 'trades/watchlist_list.html', {
         'watchlist_items': watchlist_items,
@@ -284,6 +289,9 @@ def watchlist_list(request):
 
 
 def wealth_list(request):
+    if not request.user.is_authenticated:
+        return redirect('trades:login_view')
+
     wealth_records = WealthData.objects.all().order_by('year', 'account_name')
     return render(request, 'trades/wealth_list.html', {
         'wealth_records': wealth_records,
@@ -291,9 +299,11 @@ def wealth_list(request):
 
 
 def global_profit_chart(request):
-    """Generates a PNG chart of global cumulative profit over time."""
+    if not request.user.is_authenticated:
+        return redirect('trades:login_view')
+
     calculate_fifo_profits()
-    qs = Transaction.objects.all().order_by('date_of_holding', 'id')
+    qs = Transaction.objects.filter(user=request.user).order_by('date_of_holding', 'id')
     if not qs.exists():
         return HttpResponse("No transactions to chart.")
 
@@ -311,7 +321,7 @@ def global_profit_chart(request):
     ax.set_xlabel("Date")
     ax.set_ylabel("Cumulative Profit")
     ax.yaxis.set_major_formatter(StrMethodFormatter('{x:,.0f}'))
-    ax.set_title("Global Cumulative Realized Profit Over Time")
+    ax.set_title("Global Cumulative Realized Profit Over Time (You)")
     fig.autofmt_xdate()
 
     buf = io.BytesIO()
@@ -322,11 +332,15 @@ def global_profit_chart(request):
     return HttpResponse(buf.getvalue(), content_type='image/png')
 
 
+@login_required
 def account_page(request):
     return render(request, 'trades/account.html')
 
 
 def password_reset_request(request):
+    if not request.user.is_authenticated:
+        return redirect('trades:login_view')
+
     if request.method == 'POST':
         email = request.POST.get('email')
         messages.success(request, f'Password reset instructions have been sent to {email}.')
@@ -334,62 +348,129 @@ def password_reset_request(request):
     return render(request, 'trades/password_reset_request.html')
 
 
+@login_required
 def transaction_list(request):
-    transactions = Transaction.objects.all().order_by('-date_of_holding')
+    transactions = Transaction.objects.filter(user=request.user).order_by('-date_of_holding')
     return render(request, 'trades/transaction_list.html', {'transactions': transactions})
 
 
+@login_required
 def transaction_add(request):
     if request.method == 'POST':
         form = TransactionManualItemForm(request.POST)
         if form.is_valid():
-            new_trans = form.save()
+            new_trans = form.save(user=request.user)
             messages.success(request, f"Transaction for {new_trans.item.name} added.")
             calculate_fifo_profits()
             return redirect('trades:transaction_list')
     else:
         form = TransactionManualItemForm()
-
     return render(request, 'trades/transaction_add.html', {'form': form})
 
 
 def calculate_fifo_profits():
     """
-    A rough FIFO logic that updates each Transaction's realized_profit & cumulative_profit.
+    A rough FIFO logic that updates each Transaction's realized_profit & cumulative_profit,
+    on a per-user basis.
     """
+    # Reset all
     Transaction.objects.all().update(realised_profit=0.0, cumulative_profit=0.0)
-    purchase_lots = {}  # { item_id: [ {qty, price}, ... ] }
-    cumulative_sum = 0.0
 
-    all_trans = Transaction.objects.all().order_by('date_of_holding', 'trans_type', 'id')
-    for trans in all_trans:
-        item_id = trans.item_id
-        if item_id not in purchase_lots:
-            purchase_lots[item_id] = []
+    # We'll group by user
+    all_users = Transaction.objects.values_list('user', flat=True).distinct()
+    for uid in all_users:
+        purchase_lots = {}  # { item_id: [ {qty, price}, ... ] }
+        cumulative_sum = 0.0
 
-        if trans.trans_type == 'Buy':
-            purchase_lots[item_id].append({'qty': trans.quantity, 'price': trans.price})
-            trans.realised_profit = 0.0
+        user_trans = Transaction.objects.filter(user_id=uid).order_by('date_of_holding', 'trans_type', 'id')
+        for trans in user_trans:
+            item_id = trans.item_id
+            if item_id not in purchase_lots:
+                purchase_lots[item_id] = []
+
+            if trans.trans_type == 'Buy':
+                purchase_lots[item_id].append({'qty': trans.quantity, 'price': trans.price})
+                trans.realised_profit = 0.0
+            else:
+                qty_to_sell = trans.quantity
+                sell_price = trans.price
+                profit = 0.0
+                # example 2% fee
+                while qty_to_sell > 0 and purchase_lots[item_id]:
+                    lot = purchase_lots[item_id][0]
+                    used = min(qty_to_sell, lot['qty'])
+
+                    partial_profit = (sell_price * used * 0.98) - (lot['price'] * used)
+                    profit += partial_profit
+
+                    lot['qty'] -= used
+                    qty_to_sell -= used
+                    if lot['qty'] <= 0:
+                        purchase_lots[item_id].pop(0)
+
+                trans.realised_profit = profit
+
+            cumulative_sum += trans.realised_profit
+            trans.cumulative_profit = cumulative_sum
+            trans.save()
+
+
+def login_view(request):
+    """Simple login form using Django's built-in authentication."""
+    if request.user.is_authenticated:
+        return redirect('trades:index')
+
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+        user = authenticate(request, username=username, password=password)
+        if user:
+            login(request, user)
+            return redirect('trades:index')
         else:
-            qty_to_sell = trans.quantity
-            sell_price = trans.price
-            profit = 0.0
+            messages.error(request, "Invalid username/password")
+    return render(request, 'trades/login.html')
 
-            # Example fee of 2% (arbitrary example from earlier code)
-            while qty_to_sell > 0 and purchase_lots[item_id]:
-                lot = purchase_lots[item_id][0]
-                used = min(qty_to_sell, lot['qty'])
 
-                partial_profit = (sell_price * used * 0.98) - (lot['price'] * used)
-                profit += partial_profit
+def signup_view(request):
+    """Simple sign-up form to create a new user."""
+    if request.user.is_authenticated:
+        return redirect('trades:index')
 
-                lot['qty'] -= used
-                qty_to_sell -= used
-                if lot['qty'] <= 0:
-                    purchase_lots[item_id].pop(0)
+    if request.method == 'POST':
+        username = request.POST.get('username').strip()
+        password = request.POST.get('password').strip()
+        if not username or not password:
+            messages.error(request, "Username/Password cannot be empty.")
+        else:
+            if User.objects.filter(username=username).exists():
+                messages.error(request, "Username already taken.")
+            else:
+                user = User.objects.create_user(username=username, password=password)
+                login(request, user)
+                return redirect('trades:index')
 
-            trans.realised_profit = profit
+    return render(request, 'trades/signup.html')
 
-        cumulative_sum += trans.realised_profit
-        trans.cumulative_profit = cumulative_sum
-        trans.save()
+
+def recent_trades(request):
+    """
+    Shows recent transactions from all users (public).
+    The first item image on the left (if any), item name, price, if SELL then show profit,
+    then account name on far right.
+    """
+    transactions = Transaction.objects.select_related('item', 'user').order_by('-date_of_holding')[:50]
+    context = {
+        'transactions': transactions,
+    }
+    return render(request, 'trades/recent_trades.html', context)
+
+
+def logout_view(request):
+    """
+    Custom logout view that handles a GET request
+    and then redirects to the login page.
+    """
+    logout(request)
+    messages.info(request, "Logged out successfully.")
+    return redirect('trades:login_view')

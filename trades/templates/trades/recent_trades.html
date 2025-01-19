@@ -1,0 +1,105 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Recent Trades</title>
+    <link rel="stylesheet" href="{% static 'trades/css/dark_theme.css' %}">
+    <style>
+        .trade-row {
+            display: flex;
+            align-items: center;
+            padding: 6px;
+            border-bottom: 1px solid #555;
+        }
+        .trade-row img {
+            width: 32px;
+            height: 32px;
+            margin-right: 8px;
+        }
+        .trade-item {
+            flex: 1;
+        }
+        .trade-price {
+            width: 80px;
+            text-align: right;
+        }
+        .trade-profit-loss {
+            width: 100px;
+            text-align: right;
+        }
+        .trade-user {
+            width: 150px;
+            text-align: right;
+            padding-left: 10px;
+        }
+        .top-nav { margin-bottom: 20px; }
+        .top-nav .nav-buttons {
+            list-style: none; display: flex; gap: 10px; padding: 0; margin: 0;
+        }
+        .top-nav .nav-buttons li a {
+            background-color: #008c5f; color: #fff; padding: 10px 20px;
+            text-decoration: none; border-radius: 4px; font-weight: bold;
+            display: inline-block;
+        }
+        .top-nav .nav-buttons li a:hover {
+            background-color: #00a874;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <!-- Minimal nav -->
+    <div class="top-nav">
+        <ul class="nav-buttons">
+            <li><a href="{% url 'trades:index' %}">Home</a></li>
+            <li><a href="{% url 'trades:recent_trades' %}">Recent trades</a></li>
+            {% if user.is_authenticated %}
+                <li><a href="{% url 'trades:account_page' %}">{{ user.username }}</a></li>
+                <li><a href="{% url 'trades:logout_view' %}">Logout</a></li>
+            {% else %}
+                <li><a href="{% url 'trades:login_view' %}">Account</a></li>
+            {% endif %}
+        </ul>
+    </div>
+
+    <h1>Recent Trades</h1>
+
+    {% for t in transactions %}
+        <div class="trade-row">
+            <!-- Show the first alias image if found -->
+            {% if t.item.alias_set.all %}
+                {% for al in t.item.alias_set.all %}
+                    {% if al.image_file %}
+                        <img src="{{ al.image_file.url }}" alt="alias-image">
+                        {% break %} {# Stop after first image #}
+                    {% endif %}
+                {% endfor %}
+            {% endif %}
+
+            <div class="trade-item">{{ t.item.name }}</div>
+
+            <div class="trade-price">
+                {{ t.price|floatformat:0 }}
+            </div>
+
+            {% if t.trans_type == 'Sell' %}
+                <div class="trade-profit-loss">
+                    {% if t.realised_profit >= 0 %}
+                        +{{ t.realised_profit|floatformat:0 }}
+                    {% else %}
+                        {{ t.realised_profit|floatformat:0 }}
+                    {% endif %}
+                </div>
+            {% else %}
+                <div class="trade-profit-loss">—</div>
+            {% endif %}
+
+            <div class="trade-user">
+                {{ t.user.username if t.user else "Unknown" }}
+            </div>
+        </div>
+    {% endfor %}
+
+</div>
+</body>
+</html>

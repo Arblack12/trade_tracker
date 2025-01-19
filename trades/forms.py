@@ -13,20 +13,20 @@ class TransactionManualItemForm(forms.Form):
     """
     item_name = forms.CharField(label="Item Name", max_length=200)
     trans_type = forms.ChoiceField(choices=Transaction.TYPE_CHOICES, initial=Transaction.BUY)
-    price = forms.FloatField()
-    quantity = forms.FloatField()
+    price = forms.FloatField(label="Price (millions)")
+    quantity = forms.FloatField(label="Quantity")  # NO LONGER in millions
     date_of_holding = forms.DateField(initial=timezone.now)
 
-    def save(self):
+    def save(self, user=None):
         """
-        Interpret price & quantity as 'millions'. E.g. if user enters 52.6,
-        we store 52,600,000 in the DB.
+        Price is interpreted in 'millions', i.e. we store price * 1,000,000 in DB.
+        Quantity is stored as-is (no multiplication).
         """
         name_input = self.cleaned_data['item_name'].strip()
         trans_type = self.cleaned_data['trans_type']
-        # Convert to millions
+        # Convert to millions:
         price = self.cleaned_data['price'] * 1_000_000
-        quantity = self.cleaned_data['quantity'] * 1_000_000
+        quantity = self.cleaned_data['quantity']
         date_of_holding = self.cleaned_data['date_of_holding']
 
         alias = Alias.objects.filter(short_name__iexact=name_input).first()
@@ -43,6 +43,7 @@ class TransactionManualItemForm(forms.Form):
                 item_obj = Item.objects.create(name=name_input)
 
         new_trans = Transaction.objects.create(
+            user=user,  # attach to the user if provided
             item=item_obj,
             trans_type=trans_type,
             price=price,
@@ -54,32 +55,29 @@ class TransactionManualItemForm(forms.Form):
 
 class TransactionEditForm(forms.Form):
     """
-    A form for editing an existing Transaction, allowing the user to change
-    item name, type, price, quantity, and date. We also treat user-entered
-    price/quantity in "millions" for consistency with TransactionManualItemForm.
+    A form for editing an existing Transaction.
+    Price is still in 'millions'; quantity is raw.
     """
     transaction_id = forms.IntegerField(widget=forms.HiddenInput())
     item_name = forms.CharField(label="Item Name", max_length=200)
     trans_type = forms.ChoiceField(choices=Transaction.TYPE_CHOICES)
-    price = forms.FloatField()
-    quantity = forms.FloatField()
+    price = forms.FloatField(label="Price (millions)")
+    quantity = forms.FloatField(label="Quantity")
     date_of_holding = forms.DateField()
 
     def load_initial(self, transaction):
-        """Populate initial values from the given Transaction object, dividing by 1,000,000 to show 'millions'."""
+        """
+        Divide DB-stored price by 1,000,000 to show 'millions'.
+        Quantity is shown as-is.
+        """
         self.fields['transaction_id'].initial = transaction.id
         self.fields['item_name'].initial = transaction.item.name
         self.fields['trans_type'].initial = transaction.trans_type
-        # Convert DB-stored price/qty into 'millions'
         self.fields['price'].initial = transaction.price / 1_000_000.0
-        self.fields['quantity'].initial = transaction.quantity / 1_000_000.0
+        self.fields['quantity'].initial = transaction.quantity
         self.fields['date_of_holding'].initial = transaction.date_of_holding
 
-    def update_transaction(self):
-        """
-        Updates the existing Transaction with new data, again converting
-        user-entered millions back to the full integer (e.g. 52.6 -> 52,600,000).
-        """
+    def update_transaction(self, user=None):
         from .models import Transaction, Alias, Item
 
         trans_id = self.cleaned_data['transaction_id']
@@ -87,11 +85,10 @@ class TransactionEditForm(forms.Form):
 
         name_input = self.cleaned_data['item_name'].strip()
         trans_type = self.cleaned_data['trans_type']
-        price = self.cleaned_data['price'] * 1_000_000
-        quantity = self.cleaned_data['quantity'] * 1_000_000
+        price = self.cleaned_data['price'] * 1_000_000  # convert from millions
+        quantity = self.cleaned_data['quantity']
         date_of_holding = self.cleaned_data['date_of_holding']
 
-        # Same alias logic:
         alias = Alias.objects.filter(short_name__iexact=name_input).first()
         if not alias:
             alias = Alias.objects.filter(full_name__iexact=name_input).first()
@@ -110,6 +107,11 @@ class TransactionEditForm(forms.Form):
         transaction.price = price
         transaction.quantity = quantity
         transaction.date_of_holding = date_of_holding
+
+        # Optionally ensure user matches if you want stricter ownership
+        if user is not None:
+            transaction.user = user
+
         transaction.save()
         return transaction
 

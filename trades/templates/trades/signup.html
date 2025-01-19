@@ -1,0 +1,26 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sign Up</title>
+    <link rel="stylesheet" href="{% static 'trades/css/dark_theme.css' %}">
+</head>
+<body>
+<div class="container">
+    <h1>Sign Up</h1>
+    <form method="POST">
+        {% csrf_token %}
+        <p>
+            <label for="id_username">Username:</label><br>
+            <input type="text" name="username" id="id_username" required>
+        </p>
+        <p>
+            <label for="id_password">Password:</label><br>
+            <input type="password" name="password" id="id_password" required>
+        </p>
+        <button type="submit">Sign Up</button>
+    </form>
+    <p>Already have an account? <a href="{% url 'trades:login_view' %}">Login here</a></p>
+</div>
+</body>
+</html>

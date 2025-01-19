@@ -30,13 +30,21 @@
             <li><a href="{% url 'trades:membership_list' %}">Membership</a></li>
             <li><a href="{% url 'trades:wealth_list' %}">Wealth</a></li>
             <li><a href="{% url 'trades:watchlist_list' %}">Watchlist</a></li>
-            <li><a href="{% url 'trades:account_page' %}">Account</a></li>
+            <li><a href="{% url 'trades:recent_trades' %}">Recent trades</a></li>
+
+            {% if user.is_authenticated %}
+                <li><a href="{% url 'trades:account_page' %}">{{ user.username }}</a></li>
+                <li><a href="{% url 'trades:logout_view' %}">Logout</a></li>
+            {% else %}
+                <li><a href="{% url 'trades:login_view' %}">Account</a></li>
+            {% endif %}
         </ul>
     </div>
 
     <h1>Account Page</h1>
+    <p>Welcome, {{ user.username }}!</p>
     <p>
-      <!-- Link to request a password reset -->
+      <!-- Link to request password reset (only if you want to keep it) -->
       <a href="{% url 'trades:password_reset_request' %}">Request Password Reset</a>
     </p>
 </div>

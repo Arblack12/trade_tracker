@@ -41,7 +41,7 @@
 <body>
 <div class="container">
 
-    <!-- NAV BAR (minus Profit Chart link) -->
+    <!-- NAV BAR -->
     <div class="top-nav">
         <ul class="nav-buttons">
             <li><a href="{% url 'trades:index' %}">Home</a></li>
@@ -49,13 +49,20 @@
             <li><a href="{% url 'trades:membership_list' %}">Membership</a></li>
             <li><a href="{% url 'trades:wealth_list' %}">Wealth</a></li>
             <li><a href="{% url 'trades:watchlist_list' %}">Watchlist</a></li>
-            <li><a href="{% url 'trades:account_page' %}">Account</a></li>
+            <li><a href="{% url 'trades:recent_trades' %}">Recent trades</a></li>
+
+            {% if user.is_authenticated %}
+                <li><a href="{% url 'trades:account_page' %}">{{ user.username }}</a></li>
+                <li><a href="{% url 'trades:logout_view' %}">Logout</a></li>
+            {% else %}
+                <li><a href="{% url 'trades:login_view' %}">Account</a></li>
+            {% endif %}
         </ul>
     </div>
 
     <h1>Aliases</h1>
 
-    <!-- ALIAS FORM (for add or edit) -->
+    <!-- ALIAS FORM (Add/Edit) -->
     <form method="post" enctype="multipart/form-data">
         {% csrf_token %}
         {% if edit_alias %}
@@ -64,7 +71,6 @@
         {% else %}
             <h2>Add New Alias</h2>
         {% endif %}
-
         {{ form.full_name.label }}<br>
         {{ form.full_name }}<br>
 
@@ -75,24 +81,20 @@
         {{ form.image_file }}<br>
 
         <button type="submit">Save Alias</button>
-
-        <!-- "Clear" link: just go to the same page with no edit_id to reset the form -->
         <a href="{% url 'trades:alias_list' %}" style="margin-left:10px;">Clear</a>
     </form>
 
     <hr>
 
-    <!-- SORT BY LETTER / FILTER LINKS -->
+    <!-- SORT BY LETTER -->
     <div class="letter-filter">
       <strong>Filter by letter:</strong>
       {% for l in letters %}
         <a href="?letter={{ l }}">{{ l }}</a>
       {% endfor %}
-      <!-- link to show ALL again -->
       <a href="?letter=">All</a>
     </div>
 
-    <!-- ALIAS LIST -->
     <h2>Alias List</h2>
     <table>
         <thead>
@@ -112,13 +114,12 @@
                 <td>{{ alias.short_name }}</td>
                 <td>
                     {% if alias.image_file %}
-                       <a href="{{ alias.image_file.url }}" target="_blank">
-                           <img src="{{ alias.image_file.url }}" class="thumb-img" alt="thumb">
-                       </a>
+                        <a href="{{ alias.image_file.url }}" target="_blank">
+                            <img src="{{ alias.image_file.url }}" class="thumb-img" alt="thumb">
+                        </a>
                     {% endif %}
                 </td>
                 <td>
-                    <!-- Edit alias reloads the page with ?edit_id={{ alias.id }} -->
                     <a href="?edit_id={{ alias.id }}">Edit</a>
                 </td>
             </tr>

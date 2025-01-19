@@ -36,8 +36,6 @@
             width: 120px; 
             display: inline-block;
         }
-
-        /* Make the accum/target forms line up nicely */
         .accum-target-form {
             display: flex;
             align-items: center;
@@ -63,8 +61,14 @@
             <li><a href="{% url 'trades:membership_list' %}">Membership</a></li>
             <li><a href="{% url 'trades:wealth_list' %}">Wealth</a></li>
             <li><a href="{% url 'trades:watchlist_list' %}">Watchlist</a></li>
-            <!-- Profit Chart link omitted as requested -->
-            <li><a href="{% url 'trades:account_page' %}">Account</a></li>
+            <li><a href="{% url 'trades:recent_trades' %}">Recent trades</a></li>
+            
+            {% if user.is_authenticated %}
+                <li><a href="{% url 'trades:account_page' %}">{{ user.username }}</a></li>
+                <li><a href="{% url 'trades:logout_view' %}">Logout</a></li>
+            {% else %}
+                <li><a href="{% url 'trades:login_view' %}">Account</a></li>
+            {% endif %}
         </ul>
     </div>
     <!-- END NAV BAR -->
@@ -83,7 +87,7 @@
             <button type="submit">Search</button>
         </form>
 
-        <!-- Buttons for chart (kept as example) -->
+        <!-- Example: optional chart buttons -->
         <a href="{% url 'trades:global_profit_chart' %}" style="margin-left:10px;">
             <button>Generate Chart</button>
         </a>
@@ -95,7 +99,6 @@
     <div class="content-row">
         <!-- LEFT PANEL: item image & info -->
         <div class="left-panel">
-            <!-- REMOVE "Item Details:" heading, center image+name -->
             <div style="text-align:center;">
                 {% if item_image_url %}
                     <img src="{{ item_image_url }}" alt="Item Image" class="item-image">
@@ -130,10 +133,8 @@
                {% if item_transactions|length > 0 %}{{ item_transactions.0.date_of_holding }}{% else %}-{% endif %}</p>
         </div>
 
-        <!-- RIGHT PANEL: Accum/Target forms + Add Transaction -->
+        <!-- RIGHT PANEL: forms + add transaction -->
         <div class="right-panel">
-            <!-- We remove the "Update Accum/Target" heading -->
-            
             <!-- Accumulation form -->
             <form method="post" class="accum-target-form">
                 {% csrf_token %}
@@ -154,7 +155,7 @@
                 <button type="submit" name="update_target_sell">Update</button>
             </form>
 
-            <!-- Add Transaction form (labels + alignment) -->
+            <!-- Add Transaction form -->
             <h3>Add Transaction</h3>
             <form method="post" style="display:flex; flex-direction:column; gap:8px;">
                 {% csrf_token %}
@@ -171,7 +172,7 @@
                     {{ transaction_form.price }}
                 </div>
                 <div>
-                    <label>Quantity (in millions):</label><br>
+                    <label>Quantity:</label><br>
                     {{ transaction_form.quantity }}
                 </div>
                 <div>
@@ -183,7 +184,7 @@
         </div>
     </div>
 
-    <!-- TRANSACTIONS TABLE + Edit Form -->
+    <!-- TRANSACTIONS TABLE + optional Edit Form -->
     <h2>Transactions</h2>
     <table>
         <thead>
@@ -207,13 +208,12 @@
                 <td>{{ t.quantity|floatformat:0 }}</td>
                 <td>{{ t.date_of_holding }}</td>
                 <td>
-                    <!-- Edit goes to ?edit_trans=t.id so we can load that transaction in the edit form below -->
                     <a href="?edit_trans={{ t.id }}">Edit</a> |
-                    <!-- Delete uses a small form to POST -->
                     <form method="post" style="display:inline;">
                         {% csrf_token %}
                         <input type="hidden" name="transaction_id" value="{{ t.id }}">
-                        <button type="submit" name="delete_transaction" onclick="return confirm('Delete this transaction?');">Delete</button>
+                        <button type="submit" name="delete_transaction"
+                                onclick="return confirm('Delete this transaction?');">Delete</button>
                     </form>
                 </td>
             </tr>
@@ -221,7 +221,7 @@
         </tbody>
     </table>
 
-    <!-- If we are editing a transaction, show an EDIT form below -->
+    <!-- If editing a transaction, show form -->
     {% if edit_form %}
         <hr>
         <h2>Edit Transaction</h2>
@@ -241,7 +241,7 @@
               {{ edit_form.price }}
             </div>
             <div>
-              <label>Quantity (in millions):</label><br>
+              <label>Quantity:</label><br>
               {{ edit_form.quantity }}
             </div>
             <div>
