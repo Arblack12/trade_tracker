@@ -1,4 +1,5 @@
 {% load static %}
+{% load humanize %}
 <!DOCTYPE html>
 <html>
 <head>
@@ -61,12 +62,12 @@
             <tr>
                 <td>{{ item.id }}</td>
                 <td>{{ item.name }}</td>
-                <td>{{ item.desired_price }}</td>
+                <td>{{ item.desired_price|floatformat:0|intcomma }}</td>
                 <td>{{ item.buy_or_sell }}</td>
                 <td>{{ item.account_name }}</td>
-                <td>{{ item.wished_quantity }}</td>
-                <td>{{ item.total_value }}</td>
-                <td>{{ item.current_holding }}</td>
+                <td>{{ item.wished_quantity|floatformat:0|intcomma }}</td>
+                <td>{{ item.total_value|floatformat:0|intcomma }}</td>
+                <td>{{ item.current_holding|floatformat:0|intcomma }}</td>
                 <td>{{ item.date_added }}</td>
             </tr>
         {% endfor %}

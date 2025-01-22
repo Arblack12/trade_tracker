@@ -395,7 +395,7 @@ def calculate_fifo_profits():
                 qty_to_sell = trans.quantity
                 sell_price = trans.price
                 profit = 0.0
-                # example 2% fee
+                # example: 2% fee subtracted from the sell side
                 while qty_to_sell > 0 and purchase_lots[item_id]:
                     lot = purchase_lots[item_id][0]
                     used = min(qty_to_sell, lot['qty'])
@@ -453,17 +453,64 @@ def signup_view(request):
     return render(request, 'trades/signup.html')
 
 
+# trades/views.py
+
+import io
+import pandas as pd
+from datetime import datetime
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib import messages
+from django.http import HttpResponse
+from django.db.models import Sum, Avg
+from django.utils import timezone
+from django.urls import reverse
+from django.utils.http import urlencode
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth import login, authenticate, logout
+from django.contrib.auth.models import User
+
+from matplotlib import pyplot as plt
+from matplotlib.ticker import StrMethodFormatter
+
+from .models import (
+    Transaction, Item, Alias, AccumulationPrice, TargetSellPrice,
+    Membership, WealthData, Watchlist
+)
+from .forms import (
+    TransactionManualItemForm, TransactionEditForm, AliasForm, AccumulationPriceForm,
+    TargetSellPriceForm, MembershipForm, WealthDataForm, WatchlistForm
+)
+
+# ... [other views remain unchanged above] ...
+
 def recent_trades(request):
     """
     Shows recent transactions from all users (public).
     The first item image on the left (if any), item name, price, if SELL then show profit,
     then account name on far right.
+
+    We do NOT use t.item.alias_set, because there's no ForeignKey from Alias -> Item.
+    Instead, we find possible aliases by matching Alias.full_name == t.item.name.
     """
     transactions = Transaction.objects.select_related('item', 'user').order_by('-date_of_holding')[:50]
+
+    # For each transaction, find an Alias whose full_name matches the Item name,
+    # and that has a non-null image_file. Then store that image file URL as first_image_url.
+    for t in transactions:
+        first_alias_with_image = Alias.objects.filter(
+            full_name__iexact=t.item.name,
+            image_file__isnull=False
+        ).first()
+        if first_alias_with_image and first_alias_with_image.image_file:
+            t.first_image_url = first_alias_with_image.image_file.url
+        else:
+            t.first_image_url = None
+
     context = {
         'transactions': transactions,
     }
     return render(request, 'trades/recent_trades.html', context)
+
 
 
 def logout_view(request):

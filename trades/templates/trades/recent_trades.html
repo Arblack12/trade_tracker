@@ -1,4 +1,5 @@
 {% load static %}
+{% load humanize %}  {# <-- Make sure humanize is loaded #}
 <!DOCTYPE html>
 <html>
 <head>
@@ -19,9 +20,19 @@
         .trade-item {
             flex: 1;
         }
+        .trade-type {
+            width: 50px;
+            text-align: center;
+            margin: 0 10px;
+        }
         .trade-price {
-            width: 80px;
+            width: 100px;
             text-align: right;
+        }
+        .trade-date {
+            width: 120px;
+            text-align: center;
+            margin: 0 10px;
         }
         .trade-profit-loss {
             width: 100px;
@@ -66,36 +77,46 @@
 
     {% for t in transactions %}
         <div class="trade-row">
-            <!-- Show the first alias image if found -->
-            {% if t.item.alias_set.all %}
-                {% for al in t.item.alias_set.all %}
-                    {% if al.image_file %}
-                        <img src="{{ al.image_file.url }}" alt="alias-image">
-                        {% break %} {# Stop after first image #}
-                    {% endif %}
-                {% endfor %}
+            {% if t.first_image_url %}
+                <img src="{{ t.first_image_url }}" alt="alias-image">
             {% endif %}
 
+            <!-- Item name -->
             <div class="trade-item">{{ t.item.name }}</div>
 
+            <!-- Buy/Sell type -->
+            <div class="trade-type">{{ t.trans_type }}</div>
+
+            <!-- Price with commas -->
             <div class="trade-price">
-                {{ t.price|floatformat:0 }}
+                {{ t.price|floatformat:0|intcomma }}
             </div>
 
+            <!-- Date of transaction -->
+            <div class="trade-date">
+                {{ t.date_of_holding }}
+            </div>
+
+            <!-- Realised profit only if Sell -->
             {% if t.trans_type == 'Sell' %}
                 <div class="trade-profit-loss">
                     {% if t.realised_profit >= 0 %}
-                        +{{ t.realised_profit|floatformat:0 }}
+                        +{{ t.realised_profit|floatformat:0|intcomma }}
                     {% else %}
-                        {{ t.realised_profit|floatformat:0 }}
+                        {{ t.realised_profit|floatformat:0|intcomma }}
                     {% endif %}
                 </div>
             {% else %}
                 <div class="trade-profit-loss">—</div>
             {% endif %}
 
+            <!-- User -->
             <div class="trade-user">
-                {{ t.user.username if t.user else "Unknown" }}
+                {% if t.user %}
+                    {{ t.user.username }}
+                {% else %}
+                    Unknown
+                {% endif %}
             </div>
         </div>
     {% endfor %}
