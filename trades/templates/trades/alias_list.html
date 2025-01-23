@@ -120,7 +120,18 @@
                     {% endif %}
                 </td>
                 <td>
+                    <!-- Edit link -->
                     <a href="?edit_id={{ alias.id }}">Edit</a>
+
+                    <!-- Delete form -->
+                    <form method="post" style="display:inline;">
+                        {% csrf_token %}
+                        <input type="hidden" name="alias_id" value="{{ alias.id }}">
+                        <button type="submit" name="delete_alias"
+                                onclick="return confirm('Delete this alias?');">
+                            Delete
+                        </button>
+                    </form>
                 </td>
             </tr>
         {% endfor %}

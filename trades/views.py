@@ -234,20 +234,36 @@ def alias_list(request):
         edit_alias = get_object_or_404(Alias, id=edit_id)
 
     if request.method == 'POST':
-        alias_id = request.POST.get('alias_id', '')
-        if alias_id:
-            alias_obj = get_object_or_404(Alias, id=alias_id)
-            form = AliasForm(request.POST, request.FILES, instance=alias_obj)
-        else:
-            form = AliasForm(request.POST, request.FILES)
+        # HANDLE SAVE/EDIT
+        if 'alias_id' in request.POST and 'delete_alias' not in request.POST:
+            alias_id = request.POST.get('alias_id', '')
+            if alias_id:
+                alias_obj = get_object_or_404(Alias, id=alias_id)
+                form = AliasForm(request.POST, request.FILES, instance=alias_obj)
+            else:
+                form = AliasForm(request.POST, request.FILES)
 
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Alias saved!")
+            if form.is_valid():
+                form.save()
+                messages.success(request, "Alias saved!")
+                return redirect('trades:alias_list')
+            else:
+                messages.error(request, "Error saving alias.")
+
+        # HANDLE DELETE
+        elif 'delete_alias' in request.POST:
+            alias_id = request.POST.get('alias_id', '')
+            if alias_id:
+                try:
+                    alias_obj = Alias.objects.get(id=alias_id)
+                    alias_obj.delete()
+                    messages.success(request, "Alias deleted.")
+                except Alias.DoesNotExist:
+                    messages.error(request, "Alias not found.")
             return redirect('trades:alias_list')
-        else:
-            messages.error(request, "Error saving alias.")
+
     else:
+        # GET request
         if edit_alias:
             form = AliasForm(instance=edit_alias)
         else:
@@ -309,14 +325,10 @@ def global_profit_chart(request):
     if not request.user.is_authenticated:
         return redirect('trades:login_view')
 
-    # Removed the FIFO recalculation here to improve performance:
-    # calculate_fifo_profits()
-
     qs = Transaction.objects.filter(user=request.user).order_by('date_of_holding', 'id')
     if not qs.exists():
         return HttpResponse("No transactions to chart.")
 
-    # Build a data frame from already-stored cumulative profits:
     data = []
     for tr in qs:
         data.append({
@@ -466,8 +478,8 @@ def signup_view(request):
 def recent_trades(request):
     """
     Shows recent transactions from all users (public).
-    The first item image on the left (if any), item name, price, if SELL then show profit,
-    then account name on far right.
+    Now with the same nav as other tabs,
+    plus a small 20x20 image next to the item name (no separate image table column).
     """
     transactions = Transaction.objects.select_related('item', 'user').order_by('-date_of_holding')[:50]
 
