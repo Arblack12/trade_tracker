@@ -222,25 +222,52 @@
             </tr>
         </thead>
         <tbody>
-        {% for t in all_transactions %}
-            <tr>
-                <td>{{ t.id }}</td>
-                <td>{{ t.item.name }}</td>
-                <td>{{ t.trans_type }}</td>
-                <td>{{ t.price|floatformat:0|intcomma }}</td>
-                <td>{{ t.quantity|floatformat:0|intcomma }}</td>
-                <td>{{ t.date_of_holding }}</td>
-                <td>
-                    <a href="?edit_trans={{ t.id }}">Edit</a> |
-                    <form method="post" style="display:inline;">
-                        {% csrf_token %}
-                        <input type="hidden" name="transaction_id" value="{{ t.id }}">
-                        <button type="submit" name="delete_transaction"
-                                onclick="return confirm('Delete this transaction?');">Delete</button>
-                    </form>
-                </td>
-            </tr>
-        {% endfor %}
+        <!-- Show transactions for the searched/added item if item_obj is found; otherwise show all -->
+        {% if item_obj %}
+            {% for t in item_transactions %}
+                <tr>
+                    <td>{{ t.id }}</td>
+                    <td>{{ t.item.name }}</td>
+                    <td>{{ t.trans_type }}</td>
+                    <td>{{ t.price|floatformat:0|intcomma }}</td>
+                    <td>{{ t.quantity|floatformat:0|intcomma }}</td>
+                    <td>{{ t.date_of_holding }}</td>
+                    <td>
+                        <a href="?edit_trans={{ t.id }}">Edit</a> |
+                        <form method="post" style="display:inline;">
+                            {% csrf_token %}
+                            <input type="hidden" name="transaction_id" value="{{ t.id }}">
+                            <button type="submit" name="delete_transaction"
+                                    onclick="return confirm('Delete this transaction?');">
+                                Delete
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+            {% endfor %}
+        {% else %}
+            {% for t in all_transactions %}
+                <tr>
+                    <td>{{ t.id }}</td>
+                    <td>{{ t.item.name }}</td>
+                    <td>{{ t.trans_type }}</td>
+                    <td>{{ t.price|floatformat:0|intcomma }}</td>
+                    <td>{{ t.quantity|floatformat:0|intcomma }}</td>
+                    <td>{{ t.date_of_holding }}</td>
+                    <td>
+                        <a href="?edit_trans={{ t.id }}">Edit</a> |
+                        <form method="post" style="display:inline;">
+                            {% csrf_token %}
+                            <input type="hidden" name="transaction_id" value="{{ t.id }}">
+                            <button type="submit" name="delete_transaction"
+                                    onclick="return confirm('Delete this transaction?');">
+                                Delete
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+            {% endfor %}
+        {% endif %}
         </tbody>
     </table>
 
