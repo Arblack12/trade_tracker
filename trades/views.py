@@ -6,7 +6,7 @@ from datetime import datetime
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.http import HttpResponse
-from django.db.models import Sum, Avg
+from django.db.models import Sum, Avg, Max
 from django.utils import timezone
 from django.urls import reverse
 from django.utils.http import urlencode
@@ -176,17 +176,26 @@ def index(request):
             if total_sold > 0:
                 avg_sold_price = sells.aggregate(avg_price=Avg('price'))['avg_price'] or 0
 
-            item_profit = item_transactions.aggregate(item_profit_sum=Sum('realised_profit'))['item_profit_sum'] or 0
+            # ITEM-level aggregator
+            item_profit = item_transactions.aggregate(
+                item_profit_sum=Sum('realised_profit')
+            )['item_profit_sum'] or 0
 
-            # Global profit for *this user* only
-            global_realised_profit = Transaction.objects.filter(user=request.user).aggregate(
-                total=Sum('realised_profit')
-            )['total'] or 0
+            # GLOBAL-level aggregator for ALL transactions of this user
+            # -- CHANGED from Sum('realised_profit') to Max('cumulative_profit') --
+            global_realised_profit = Transaction.objects.filter(user=request.user) \
+                .aggregate(total=Max('cumulative_profit'))['total'] or 0
 
             if item_alias and item_alias.image_file:
                 item_image_url = item_alias.image_file.url
         else:
             messages.warning(request, f"No item or alias found matching '{search_query}'.")
+
+    # If no search (or item not found), we can still show the global profit:
+    if not global_realised_profit:
+        # Fallback aggregator for user’s entire transactions
+        global_realised_profit = Transaction.objects.filter(user=request.user) \
+            .aggregate(total=Max('cumulative_profit'))['total'] or 0
 
     # Show *this user's* transactions in the bottom table
     all_transactions = Transaction.objects.filter(user=request.user).order_by('-date_of_holding')
@@ -453,44 +462,11 @@ def signup_view(request):
     return render(request, 'trades/signup.html')
 
 
-# trades/views.py
-
-import io
-import pandas as pd
-from datetime import datetime
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib import messages
-from django.http import HttpResponse
-from django.db.models import Sum, Avg
-from django.utils import timezone
-from django.urls import reverse
-from django.utils.http import urlencode
-from django.contrib.auth.decorators import login_required
-from django.contrib.auth import login, authenticate, logout
-from django.contrib.auth.models import User
-
-from matplotlib import pyplot as plt
-from matplotlib.ticker import StrMethodFormatter
-
-from .models import (
-    Transaction, Item, Alias, AccumulationPrice, TargetSellPrice,
-    Membership, WealthData, Watchlist
-)
-from .forms import (
-    TransactionManualItemForm, TransactionEditForm, AliasForm, AccumulationPriceForm,
-    TargetSellPriceForm, MembershipForm, WealthDataForm, WatchlistForm
-)
-
-# ... [other views remain unchanged above] ...
-
 def recent_trades(request):
     """
     Shows recent transactions from all users (public).
     The first item image on the left (if any), item name, price, if SELL then show profit,
     then account name on far right.
-
-    We do NOT use t.item.alias_set, because there's no ForeignKey from Alias -> Item.
-    Instead, we find possible aliases by matching Alias.full_name == t.item.name.
     """
     transactions = Transaction.objects.select_related('item', 'user').order_by('-date_of_holding')[:50]
 
@@ -510,7 +486,6 @@ def recent_trades(request):
         'transactions': transactions,
     }
     return render(request, 'trades/recent_trades.html', context)
-
 
 
 def logout_view(request):
