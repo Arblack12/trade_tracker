@@ -182,7 +182,6 @@ def index(request):
             )['item_profit_sum'] or 0
 
             # GLOBAL-level aggregator for ALL transactions of this user
-            # -- CHANGED from Sum('realised_profit') to Max('cumulative_profit') --
             global_realised_profit = Transaction.objects.filter(user=request.user) \
                 .aggregate(total=Max('cumulative_profit'))['total'] or 0
 
@@ -193,7 +192,6 @@ def index(request):
 
     # If no search (or item not found), we can still show the global profit:
     if not global_realised_profit:
-        # Fallback aggregator for user’s entire transactions
         global_realised_profit = Transaction.objects.filter(user=request.user) \
             .aggregate(total=Max('cumulative_profit'))['total'] or 0
 
@@ -311,11 +309,14 @@ def global_profit_chart(request):
     if not request.user.is_authenticated:
         return redirect('trades:login_view')
 
-    calculate_fifo_profits()
+    # Removed the FIFO recalculation here to improve performance:
+    # calculate_fifo_profits()
+
     qs = Transaction.objects.filter(user=request.user).order_by('date_of_holding', 'id')
     if not qs.exists():
         return HttpResponse("No transactions to chart.")
 
+    # Build a data frame from already-stored cumulative profits:
     data = []
     for tr in qs:
         data.append({
