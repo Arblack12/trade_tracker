@@ -5,9 +5,7 @@ from django.utils import timezone
 from django.contrib.auth.models import User
 
 class Alias(models.Model):
-    """
-    Aliases for items, linking a shorter name to a full name + optional image.
-    """
+    # ... (Alias model definition remains the same) ...
     full_name = models.CharField(max_length=200, unique=False)
     short_name = models.CharField(max_length=100, blank=True)
     image_path = models.CharField(max_length=300, blank=True)
@@ -18,6 +16,7 @@ class Alias(models.Model):
 
 
 class Item(models.Model):
+    # ... (Item model definition remains the same) ...
     name = models.CharField(max_length=200, unique=True)
 
     def __str__(self):
@@ -25,23 +24,34 @@ class Item(models.Model):
 
 
 class Transaction(models.Model):
+    # Define all possible transaction types
     BUY = 'Buy'
     SELL = 'Sell'
+    INSTANT_BUY = 'Instant Buy'
+    INSTANT_SELL = 'Instant Sell'
+    PLACING_BUY = 'Placing Buy'
+    PLACING_SELL = 'Placing Sell'
+
+    # Update TYPE_CHOICES to include all types
     TYPE_CHOICES = [
         (BUY, 'Buy'),
         (SELL, 'Sell'),
+        (INSTANT_BUY, 'Instant Buy'),
+        (INSTANT_SELL, 'Instant Sell'),
+        (PLACING_BUY, 'Placing Buy'),
+        (PLACING_SELL, 'Placing Sell'),
     ]
 
+    # Existing fields...
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     item = models.ForeignKey(Item, on_delete=models.CASCADE)
-    trans_type = models.CharField(max_length=4, choices=TYPE_CHOICES, default=BUY)
+    trans_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default=BUY) # Increased max_length
     price = models.FloatField()
     quantity = models.FloatField()
     date_of_holding = models.DateField(default=timezone.now)
     realised_profit = models.FloatField(default=0.0)
     cumulative_profit = models.FloatField(default=0.0)
 
-    # Add an index to speed up queries by user & date
     class Meta:
         indexes = [
             models.Index(fields=['user', 'date_of_holding']),
@@ -50,6 +60,7 @@ class Transaction(models.Model):
     def __str__(self):
         return f"{self.item.name} {self.trans_type} {self.quantity} @ {self.price}"
 
+# ... (Rest of the models: AccumulationPrice, TargetSellPrice, Membership, WealthData, Watchlist, UserBan remain the same) ...
 
 class AccumulationPrice(models.Model):
     item = models.OneToOneField(Item, on_delete=models.CASCADE)
@@ -118,8 +129,6 @@ class Watchlist(models.Model):
     def __str__(self):
         return f"{self.name} -> {self.buy_or_sell} @ {self.desired_price}"
 
-
-# --- New model for user banning functionality ---
 class UserBan(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="ban_info")
     ban_until = models.DateTimeField(null=True, blank=True)

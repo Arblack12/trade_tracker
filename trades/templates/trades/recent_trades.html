@@ -8,18 +8,18 @@
     <style>
         .top-nav { margin-bottom: 20px; }
         .top-nav .nav-buttons {
-            list-style: none; 
-            display: flex; 
-            gap: 10px; 
-            padding: 0; 
+            list-style: none;
+            display: flex;
+            gap: 10px;
+            padding: 0;
             margin: 0;
         }
         .top-nav .nav-buttons li a {
-            background-color: #008c5f; 
-            color: #fff; 
+            background-color: #008c5f;
+            color: #fff;
             padding: 10px 20px;
-            text-decoration: none; 
-            border-radius: 4px; 
+            text-decoration: none;
+            border-radius: 4px;
             font-weight: bold;
             display: inline-block;
         }
@@ -80,6 +80,7 @@
             <tr>
                 <th>Item</th>
                 <th>Type</th>
+                <th>Quantity</th>
                 <th>Price</th>
                 <th>Date</th>
                 <th>Realised Profit</th>
@@ -96,6 +97,7 @@
                     {{ t.item.name }}
                 </td>
                 <td>{{ t.trans_type }}</td>
+                <td>{{ t.quantity|floatformat:0|intcomma }}</td>
                 <td>{{ t.price|floatformat:0|intcomma }}</td>
                 <td>{{ t.date_of_holding }}</td>
                 <td>
