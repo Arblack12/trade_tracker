@@ -955,101 +955,76 @@ def logout_view(request):
 # ============================
 # calculate_fifo_for_user - Ensure it exists and is correct
 # ============================
+# ... imports, User = get_user_model(), ADMIN_USERNAME ...
+
 def calculate_fifo_for_user(user):
-    # Ensure user object is valid
-    # 'User' below now refers to the class obtained by get_user_model()
+    User = get_user_model()
     if not user or not isinstance(user, User):
         print(f"FIFO Calc: Invalid user object received: {user}")
         return
 
-    # --- Add your FIFO logic here ---
-    # This function should recalculate realised_profit and cumulative_profit
-    # ONLY for the transactions belonging to the passed 'user' argument.
-    # It should iterate through the user's transactions chronologically.
-    # See the original trades/views.py for the full FIFO logic.
     with db_transaction.atomic():
-        # Reset profits for this user
         Transaction.objects.filter(user=user).update(realised_profit=0.0, cumulative_profit=0.0)
-
-        purchase_lots = {} # {item_id: [ {qty, price}, ... ] }
+        purchase_lots = {}
         cumulative_sum = 0.0
-
-        # Fetch user's transactions IN ORDER
         user_trans = Transaction.objects.filter(
             user=user
-        ).exclude( # Exclude placing orders from FIFO calc
+        ).exclude(
             trans_type__in=[Transaction.PLACING_BUY, Transaction.PLACING_SELL]
-        ).order_by('date_of_holding', 'id') # Use ID as tie-breaker
+        ).order_by('date_of_holding', 'id')
 
         for trans in user_trans:
             item_id = trans.item_id
             if item_id not in purchase_lots:
                 purchase_lots[item_id] = []
 
-            if trans.trans_type in [Transaction.BUY, Transaction.INSTANT_BUY]: # Consider both buy types
+            if trans.trans_type in [Transaction.BUY, Transaction.INSTANT_BUY]:
                 purchase_lots[item_id].append({'qty': trans.quantity, 'price': trans.price})
-                trans.realised_profit = 0.0 # Buys don't realize profit directly
+                trans.realised_profit = 0.0
 
-            elif trans.trans_type in [Transaction.SELL, Transaction.INSTANT_SELL]: # Consider both sell types
+            elif trans.trans_type in [Transaction.SELL, Transaction.INSTANT_SELL]:
                 qty_to_sell = trans.quantity
-                sell_price = trans.price
+                sell_price = trans.price # <--- ADD THIS LINE BACK
                 profit = 0.0
-                cost_basis = 0.0 # Track cost for this specific sale
-
-                # --- Your FIFO matching logic here ---
+                cost_basis = 0.0
                 temp_lots = purchase_lots.get(item_id, [])
                 indices_to_remove = []
-                qty_sold_from_lots = 0 # Track actual quantity matched
+                qty_sold_from_lots = 0
 
                 for i, lot in enumerate(temp_lots):
-                    if qty_sold_from_lots >= qty_to_sell: # Stop if we've matched enough
+                    if qty_sold_from_lots >= qty_to_sell:
                          break
                     use_from_lot = min(qty_to_sell - qty_sold_from_lots, lot['qty'])
-                    if use_from_lot <= 0: continue # Skip if lot is empty or no more needed
-
+                    if use_from_lot <= 0: continue
                     cost_basis += use_from_lot * lot['price']
                     lot['qty'] -= use_from_lot
                     qty_sold_from_lots += use_from_lot
-
-                    if lot['qty'] <= 0.0001: # Use tolerance for float comparison
+                    if lot['qty'] <= 0.0001:
                         indices_to_remove.append(i)
 
-                # Remove used-up lots (iterate backwards to avoid index issues)
                 for index in sorted(indices_to_remove, reverse=True):
-                    if index < len(purchase_lots[item_id]): # Bounds check
+                    if index < len(purchase_lots[item_id]):
                        purchase_lots[item_id].pop(index)
                     else:
                         print(f"FIFO Warning: Index {index} out of bounds for item {item_id} lots.")
 
+                # --- Calculate profit (Reinstating 2% fee example) ---
+                # Now 'sell_price' is defined before being used here
+                sale_value = sell_price * trans.quantity
+                fee = sale_value * 0.02
+                net_sale_value = sale_value - fee
 
-                # --- Calculate profit (assuming 2% fee example) ---
-                # Adjust fee logic as needed - currently NO FEE assumed
-                sale_value = sell_price * trans.quantity # Use original transaction quantity for sale value
-                # fee = sale_value * 0.02 # Example fee
-                # net_sale_value = sale_value - fee
-                net_sale_value = sale_value # No fee
-
-                # Check if enough lots were available
                 if abs(qty_sold_from_lots - trans.quantity) > 0.0001:
-                    # This case means selling more than was bought according to FIFO lots.
-                    # This might indicate data inconsistency or selling short.
-                    # How to handle profit here? Often, cost basis is considered 0 for the unmatched part,
-                    # leading to higher profit, or you might want to flag it as an error.
-                    # For now, let's calculate profit based only on matched lots.
-                    # If cost_basis is 0 because no lots matched, profit = net_sale_value.
-                     profit = net_sale_value - cost_basis
-                     print(f"FIFO Warning: Sold {trans.quantity} but only matched {qty_sold_from_lots} from lots for Tx ID {trans.id}. Calculated profit based on matched lots.")
+                    profit = net_sale_value - cost_basis
+                    print(f"FIFO Warning: Sold {trans.quantity} but only matched {qty_sold_from_lots} from lots for Tx ID {trans.id}. Calculated profit based on matched lots.")
                 else:
                      profit = net_sale_value - cost_basis
 
-
                 trans.realised_profit = profit
-                cumulative_sum += profit # Update running total
+                cumulative_sum += profit
 
-            # Update cumulative profit regardless of type (or only for sells?)
-            # Typically cumulative tracks the total realized profit up to that point.
+            # Update cumulative profit
             trans.cumulative_profit = cumulative_sum
-            # Update only the necessary fields
             trans.save(update_fields=['realised_profit', 'cumulative_profit'])
 
 
