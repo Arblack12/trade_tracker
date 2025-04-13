@@ -1,13 +1,15 @@
+{% comment %} trades/templates/trades/index.html {% endcomment %}
 {% load static %}
-{% load humanize %}       {# for intcomma #}
-{% load extra_filters %}  {# Load if you use divide/multiply, otherwise optional #}
+{% load humanize %}      {# for intcomma #}
+{% load extra_filters %} {# Load if you use divide/multiply, otherwise optional #}
+{% load query_transform %}
 
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trade Tracker Main</title>
+    <title>Trade Tracker</title>
 
     {# --- Bootstrap CSS --- #}
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous">
@@ -15,130 +17,199 @@
     {# --- Your Custom CSS Link --- #}
     <link rel="stylesheet" href="{% static 'trades/css/dark_theme.css' %}">
 
-    {# --- Your Inline Styles --- #}
+    {# --- Inline Styles (Merged & Enhanced) --- #}
     <style>
-        /* --- Keep your original styles --- */
-        body { /* Apply dark theme styles to body if not extending */
-             background-color: #1a1a1a;
-             color: #e0e0e0;
-             font-family: sans-serif; /* Basic font */
-             margin: 0; /* Remove default margin */
-             padding: 15px; /* Add some padding */
+        /* --- Base Dark Theme Adjustments --- */
+        body {
+            background-color: #1a1a1a;
+            color: #e0e0e0;
+            font-family: sans-serif;
+            margin: 0;
+            padding: 15px;
         }
-        .container { /* Optional container for centering/max-width */
-             max-width: 1400px; /* Adjust as needed */
-             margin: 0 auto; /* Center the content */
+        .container {
+            max-width: 1600px; /* Wider container for more content */
+            margin: 0 auto;
         }
-        a { color: #66bfff; text-decoration: none; } /* Basic link styling */
+        a { color: #66bfff; text-decoration: none; }
         a:hover { text-decoration: underline; }
-        button { /* Basic button styling */
+        button, input[type="submit"] {
             background-color: #008c5f; color: #fff; padding: 8px 15px;
             border: none; border-radius: 4px; cursor: pointer; font-weight: bold;
         }
-        button:hover { background-color: #00a874; }
+        button:hover, input[type="submit"]:hover { background-color: #00a874; }
         input[type="text"], input[type="number"], input[type="date"], select {
-             background-color: #333; color: #eee; border: 1px solid #555; padding: 6px; border-radius: 3px;
-
-        }
-        .top-row button { /* Target buttons specifically within the top-row div */
-            padding: 6px 12px;   /* Reduce padding (original was 8px 15px) */
-            font-size: 0.85em;
+            background-color: #333; color: #eee; border: 1px solid #555; padding: 6px; border-radius: 3px;
         }
         table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-        th, td { border: 1px solid #555; padding: 8px; text-align: left; }
+        th, td { border: 1px solid #555; padding: 8px; text-align: left; vertical-align: middle; }
         thead th { background-color: #333; }
         tbody tr:nth-child(even) { background-color: #282828; }
 
+        /* --- Navigation --- */
         .top-nav { margin-bottom: 20px; }
         .top-nav .nav-buttons {
-            list-style: none; display: flex; gap: 10px; padding: 0; margin: 0; flex-wrap: wrap; /* Added wrap */
+            list-style: none; display: flex; gap: 10px; padding: 0; margin: 0; flex-wrap: wrap;
         }
-        .top-nav .nav-buttons li a { /* Style nav links like buttons */
+        .top-nav .nav-buttons li a {
             background-color: #008c5f; color: #fff; padding: 10px 20px;
             text-decoration: none; border-radius: 4px; font-weight: bold;
             display: inline-block;
         }
-        .top-nav .nav-buttons li a:hover {
-            background-color: #00a874;
+        .top-nav .nav-buttons li a:hover { background-color: #00a874; }
+        .top-nav .nav-buttons form button a { /* Make logout button visually consistent */
+             background-color: #dc3545 !important; /* Red for logout */
+             color: #fff !important; padding: 10px 20px; text-decoration: none;
+             border-radius: 4px; font-weight: bold; display: inline-block;
         }
+         .top-nav .nav-buttons form button a:hover { background-color: #bb2d3b !important; }
+         .top-nav .nav-buttons form button { /* Reset underlying button style */
+             background: none; border: none; padding: 0; margin: 0; cursor: pointer;
+         }
+
+        /* --- Top Row (Search, Timeframe, Charts) --- */
         .top-row {
             display: flex; align-items: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;
         }
+        .top-row button { /* Smaller buttons in top row */
+            padding: 6px 12px;
+            font-size: 0.85em;
+        }
+        .top-row form { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+        /* --- Main Content Layout (Left/Right Panels) --- */
         .content-row {
             display: flex; gap: 20px; margin-bottom: 20px; flex-wrap: wrap;
         }
         .left-panel, .right-panel {
-             border: 1px solid #444; padding: 15px;
-             flex-basis: 100%; /* Default to full width on small screens */
+            border: 1px solid #444; padding: 15px; border-radius: 5px;
+            background-color: #222; /* Slightly different background for panels */
+            flex-basis: 100%; /* Default to full width */
         }
-         @media (min-width: 992px) { /* On larger screens, side-by-side */
-             .left-panel, .right-panel {
-                 flex: 1; /* Take equal space */
-             }
-         }
+        @media (min-width: 1200px) { /* Adjust breakpoint as needed */
+            .left-panel { flex: 0 0 30%; } /* Fixed width for left */
+            .right-panel { flex: 1; } /* Right takes remaining space */
+        }
+        @media (min-width: 992px) and (max-width: 1199px) { /* Medium screens */
+             .left-panel { flex: 0 0 40%; }
+             .right-panel { flex: 1; }
+        }
+
+        /* --- Left Panel (Item Info) --- */
         .item-image {
-            max-width: 150px;
-            max-height: 150px;
-            margin-bottom: 10px; display: block; margin-left: auto; margin-right:auto;
+            max-width: 150px; max-height: 150px; margin-bottom: 10px;
+            display: block; margin-left: auto; margin-right:auto; border-radius: 4px;
         }
         .field-label {
-            font-weight: bold;
-            width: 150px;
-            display: inline-block;
-            margin-right: 5px;
+            font-weight: bold; width: 160px; /* Increased width */
+            display: inline-block; margin-right: 5px;
         }
         .field-value { display: inline; }
-        .info-row p { margin-bottom: 0.5rem; }
-
+        .info-row p { margin-bottom: 0.6rem; } /* Slightly more space */
         .accum-target-form {
-            display: flex;
-            align-items: center;
-            gap: 8px;
+            display: flex; align-items: center; gap: 8px;
             margin-bottom: 10px; flex-wrap: wrap;
         }
-        .accum-target-form label { width: 150px; flex-shrink: 0; }
+        .accum-target-form label { width: 160px; flex-shrink: 0; } /* Match field-label */
         .accum-target-form input[type="number"] { width: 100px; }
-        .accum-target-form button { padding: 6px 12px; font-size: 0.9em; } /* Smaller update buttons */
+        .accum-target-form button { padding: 6px 12px; font-size: 0.9em; }
 
-        .transaction-form-section { margin-top: 20px; }
-        .transaction-form-section h3 { margin-bottom: 10px; }
-        .transaction-form-section form div { margin-bottom: 8px; }
-        .transaction-form-section label { display: block; margin-bottom: 3px; font-weight: bold; }
+        /* --- Right Panel (Forms) --- */
+        .form-switcher { margin-bottom: 15px; display: flex; gap: 10px; }
+        .form-container { display: none; /* Initially hide all forms */ }
+        .form-container.active { display: block; /* Show active form */ }
+
+        .transaction-form-section h3 { margin-bottom: 15px; border-bottom: 1px solid #444; padding-bottom: 5px;}
+        .transaction-form-section form div { margin-bottom: 10px; }
+        .transaction-form-section label { display: block; margin-bottom: 4px; font-weight: bold; }
         .transaction-form-section input[type="text"],
         .transaction-form-section input[type="number"],
         .transaction-form-section input[type="date"],
         .transaction-form-section select {
-             width: 100%;
-             padding: 6px;
-             box-sizing: border-box;
-             background-color: #333; color: #eee; border: 1px solid #555;
+            width: 100%; padding: 6px; box-sizing: border-box;
         }
-        .transaction-form-section button { margin-top: 10px; }
+        /* Buttons for Transaction Type */
+        .trans-type-buttons { margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap; }
+        .trans-type-buttons button {
+            padding: 8px 12px; font-size: 0.9em;
+            border: 1px solid #555; /* Add border */
+            opacity: 0.7; /* Default dim */
+        }
+         .trans-type-buttons button.selected {
+            opacity: 1.0; /* Full opacity when selected */
+            border-width: 2px; /* Highlight selected */
+            box-shadow: 0 0 5px rgba(255, 255, 255, 0.3);
+        }
+        .btn-buy { background-color: #198754; border-color: #13653f !important; } /* Green */
+        .btn-sell { background-color: #dc3545; border-color: #b02a37 !important; } /* Red */
+        .btn-buy:hover { background-color: #157347; }
+        .btn-sell:hover { background-color: #b02a37; }
 
+        .submit-section button { width: 100%; padding: 10px; font-size: 1.1em; margin-top: 10px;}
+
+        /* --- Tables & Actions --- */
+         h2 { margin-top: 25px; border-bottom: 1px solid #555; padding-bottom: 5px;}
         .action-buttons form, .action-buttons a {
-            display: inline-block; margin-right: 5px;
+            display: inline-block; margin-right: 5px; vertical-align: middle;
         }
         .action-buttons button { /* Style delete button like a link */
-             background: none; border: none; color: #ff4d4d; cursor: pointer; padding: 0; text-decoration: underline; font-size: inherit; /* Inherit font size */
+            background: none; border: none; color: #ff4d4d; cursor: pointer;
+            padding: 0; text-decoration: underline; font-size: inherit; /* Inherit font size */
+            line-height: 1; /* Align better with text */
         }
-         .action-buttons button:hover { color: #ff8080;}
-         .action-buttons a { color: #66bfff; }
-         .action-buttons a:hover { color: #99d6ff; }
+        .action-buttons button:hover { color: #ff8080;}
+        .action-buttons a { color: #66bfff; }
+        .action-buttons a:hover { color: #99d6ff; }
 
-        .pagination { margin-top: 15px; text-align: center; /* Center pagination */ }
-        .pagination a { margin: 0 5px; }
+        /* --- Pagination --- */
+        .pagination { margin-top: 15px; text-align: center; }
+        .pagination .step-links a { margin: 0 5px; }
         .pagination .current-page { margin: 0 10px; font-weight: bold; }
 
-        /* --- Bootstrap Alert Styling Integration --- */
-        /* Inherit font color for alerts from body */
-        .alert { color: inherit; }
-        /* Specific overrides if needed */
-        .alert-success { background-color: #198754; color: white; } /* Ensure text contrast */
+        /* --- Alerts --- */
+        .messages-container {
+            position: sticky; top: 0; z-index: 1050;
+            max-width: 700px; margin-left: auto; margin-right: auto;
+            margin-bottom: 1rem;
+        }
+        .alert { color: inherit; margin-bottom: 2px; border-radius: 0; }
+        .alert-success { background-color: #198754; color: white; }
         .alert-danger { background-color: #dc3545; color: white; }
         .alert-warning { background-color: #ffc107; color: black; }
         .alert-info { background-color: #0dcaf0; color: black; }
-        /* Style the close button for dark theme */
         .btn-close { filter: invert(1) grayscale(100%) brightness(200%); }
+
+        /* --- Charts --- */
+        .chart-container img {
+            max-width:100%; height: auto; border: 1px solid #444; margin-bottom: 20px; border-radius: 4px;
+        .filter-buttons { margin-bottom: 10px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;}
+        .filter-buttons h2 { margin: 0; margin-right: 10px; /* Adjust spacing */ font-size: 1.4em; border: none; padding: 0;} /* Style heading */
+        .filter-buttons a button { /* Style button links */
+             padding: 5px 10px;
+             font-size: 0.9em;
+             background-color: #444; /* Default button color */
+             border: 1px solid #666;
+             color: #eee;
+             cursor: pointer;
+        }
+        .filter-buttons a button.active { /* Style for active button */
+            background-color: #008c5f; /* Active color */
+            border-color: #00a874;
+            font-weight: bold;
+        }
+         .filter-buttons a button:hover {
+             background-color: #555; /* Hover for inactive */
+         }
+          .filter-buttons a button.active:hover {
+             background-color: #00a874; /* Hover for active */
+         }
+
+         /* Style for transaction date/time */
+         td.transaction-time {
+             white-space: nowrap; /* Prevent wrapping */
+             font-size: 0.9em; /* Slightly smaller */
+             color: #bbb; /* Dimmer color */
+         }
 
     </style>
 </head>
@@ -146,35 +217,35 @@
 <div class="container">
 
     {# --- Display Django Messages (Using Bootstrap Alert Structure) --- #}
-    <div class="messages-container mx-auto" style="position: sticky; top: 0; z-index: 1050; max-width: 700px; /* Adjust max-width as desired */ margin-bottom: 1rem;">
+    <div class="messages-container">
       {% if messages %}
           {% for message in messages %}
-              {# --- Map Django message tags to Bootstrap alert classes --- #}
+              {# --- Map Django messa   ge tags to Bootstrap alert classes --- #}
               {% with bootstrap_tag=message.tags|lower %}
                   {% if 'error' in bootstrap_tag or 'danger' in bootstrap_tag %}
                       {% with alert_class='alert-danger' %}
-                          <div class="alert {{ alert_class }} alert-dismissible fade show" role="alert" style="margin-bottom: 2px; border-radius: 0;">
+                          <div class="alert {{ alert_class }} alert-dismissible fade show" role="alert">
                               {{ message }}
                               <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                           </div>
                       {% endwith %}
                   {% elif 'success' in bootstrap_tag %}
                       {% with alert_class='alert-success' %}
-                          <div class="alert {{ alert_class }} alert-dismissible fade show" role="alert" style="margin-bottom: 2px; border-radius: 0;">
+                           <div class="alert {{ alert_class }} alert-dismissible fade show" role="alert">
                               {{ message }}
                               <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                           </div>
                       {% endwith %}
                   {% elif 'warning' in bootstrap_tag %}
-                      {% with alert_class='alert-warning' %}
-                           <div class="alert {{ alert_class }} alert-dismissible fade show" role="alert" style="margin-bottom: 2px; border-radius: 0;">
+                       {% with alert_class='alert-warning' %}
+                           <div class="alert {{ alert_class }} alert-dismissible fade show" role="alert">
                               {{ message }}
                               <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                           </div>
                       {% endwith %}
                   {% else %} {# Default to info #}
-                      {% with alert_class='alert-info' %}
-                           <div class="alert {{ alert_class }} alert-dismissible fade show" role="alert" style="margin-bottom: 2px; border-radius: 0;">
+                       {% with alert_class='alert-info' %}
+                           <div class="alert {{ alert_class }} alert-dismissible fade show" role="alert">
                               {{ message }}
                               <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                           </div>
@@ -186,7 +257,7 @@
     </div>
     {# --- End Django Messages --- #}
 
-    {# --- NAV BAR (Your Original Structure) --- #}
+    {# --- NAV BAR --- #}
     <div class="top-nav">
         <ul class="nav-buttons">
             <li><a href="{% url 'trades:index' %}">Home</a></li>
@@ -200,20 +271,17 @@
                 <li><a href="{% url 'trades:account_page' %}">{{ user.username }}</a></li>
                 {# Logout Form Button #}
                 <li>
-                     <form action="{% url 'trades:logout_view' %}" method="post" style="display: inline;">
-                         {% csrf_token %}
-                         <button type="submit" style="background: none; border: none; padding: 0; margin: 0;">
-                            {# Apply button styling directly to the link inside #}
-                            <a style="background-color: #dc3545; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block;">Logout</a>
-                         </button>
-                     </form>
-                 </li>
+                    <form action="{% url 'trades:logout_view' %}" method="post" style="display: inline;">
+                        {% csrf_token %}
+                        <button type="submit"><a>Logout</a></button> {# Styled by CSS #}
+                    </form>
+                </li>
             {% else %}
                 <li><a href="{% url 'trades:login_view' %}">Login/Signup</a></li> {# Combined Login/Signup #}
             {% endif %}
 
              {% if user.is_staff %} {# Staff only link #}
-              <li><a href="{% url 'trades:user_management' %}" style="background-color: #ffc107; color: #333;">Manage Users</a></li>
+                 <li><a href="{% url 'trades:user_management' %}" style="background-color: #ffc107; color: #333;">Manage Users</a></li>
              {% endif %}
         </ul>
     </div>
@@ -221,11 +289,10 @@
 
     {# --- TOP ROW: search, timeframe, and chart buttons --- #}
     <div class="top-row">
-        <form method="get" action="." style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-             <label for="id_search">Search Item:</label>
+        <form method="get" action=".">
+            <label for="id_search">Search Item:</label>
             <input type="text" id="id_search" name="search" placeholder="Item short or full name" value="{{ search_query|default:'' }}">
 
-            {# Keep timeframe if you use it, otherwise remove #}
             <label for="id_timeframe">Time Frame:</label>
             <select id="id_timeframe" name="timeframe">
                 <option {% if timeframe == "Daily" %}selected{% endif %}>Daily</option>
@@ -251,19 +318,27 @@
         {% endif %}
     </div>
 
-    {# --- Main Content Area --- #}
-    <div class="content-row">
-        {# --- LEFT PANEL: item image & info --- #}
-        <div class="left-panel">
-             {% if item %} {# Only show if an item is found #}
+{# --- Main Content Area --- #}
+    <div class="content-row"> {# <--- START content-row --> #}
+
+        {# --- LEFT PANEL --- #}
+        <div class="left-panel"> {# <--- START left-panel --> #}
+            {# trades/templates/trades/index.html #}
+
+            {# ... inside <div class="left-panel"> ... #}
+            {% if item %}
+                {# === All the content for the left panel when an item exists === #}
+                {# Item image and title #}
                 <div style="text-align:center;">
                     {% if item_image_url %}
                     <img src="{{ item_image_url }}" alt="{{ item.name }} Image" class="item-image">
                     {% else %}
-                     <img src="{% static 'images/rs3_logo.webp' %}" alt="Default Image" class="item-image" style="opacity: 0.5;">
+                    <img src="{% static 'images/rs3_logo.webp' %}" alt="Default Image" class="item-image" style="opacity: 0.5;">
                     {% endif %}
                     <h2>{{ item.name }}</h2>
                 </div>
+
+                {# Display general item stats #}
                 <div class="info-row">
                     <p><span class="field-label">Accumulation Price:</span> <span class="field-value">{% if accumulation %} {{ accumulation.accumulation_price|floatformat:0|intcomma }} {% else %} 0 {% endif %}</span></p>
                     <p><span class="field-label">Target Sell Price:</span> <span class="field-value">{% if target_sell %} {{ target_sell.target_sell_price|floatformat:0|intcomma }} {% else %} 0 {% endif %}</span></p>
@@ -272,97 +347,197 @@
                     <p><span class="field-label">Quantity Held:</span> <span class="field-value">{{ remaining_quantity|floatformat:0|intcomma }}</span></p>
                     <p><span class="field-label">Item Realised Profit:</span> <span class="field-value">{{ item_profit|floatformat:0|intcomma }}</span></p>
                     <p><span class="field-label">Global Realised Profit:</span> <span class="field-value">{{ global_realised_profit|floatformat:0|intcomma }}</span></p>
-                    <p><span class="field-label">Last Tx Date:</span>
-                       <span class="field-value">
-                       {% with first_trans=page_obj.object_list.0 %}
-                          {% if first_trans %}{{ first_trans.date_of_holding|date:"Y-m-d" }}{% else %}-{% endif %}
-                       {% endwith %}
-                       </span>
-                   </p>
-                 </div>
-            {% else %}
+                    <p><span class="field-label">Last User Tx:</span>
+                        <span class="field-value">
+                        {% with first_trans=item_transactions.object_list.0 %}
+                            {% if first_trans %}{{ first_trans.date_of_holding|naturaltime }}{% else %}-{% endif %}
+                        {% endwith %}
+                        </span>
+                    </p>
+                </div> {# End info-row #}
+
+                {# Accumulation / Target Price Forms - **** ADMIN ONLY **** #}
+                {% if user.username == ADMIN_USERNAME %}
+                    <div class="admin-only-form">
+                        <hr style="border-color: #444; margin-top: 15px;">
+                        <form method="post" class="accum-target-form">
+                           {% csrf_token %}
+                           <input type="hidden" name="acc_item_id" value="{{ item.id }}">
+                           <input type="hidden" name="search" value="{{ search_query|default:'' }}">
+                           <label for="acc_price">Accumulation Price (M):</label>
+                           <input type="number" step="any" name="accumulation_price" id="acc_price" value="{% if accumulation %}{{ accumulation.accumulation_price|divide:1000000|default_if_none:''|floatformat:'-3g' }}{% endif %}">
+                           <button type="submit" name="update_accumulation">Update</button>
+                        </form>
+                        <form method="post" class="accum-target-form">
+                           {% csrf_token %}
+                           <input type="hidden" name="ts_item_id" value="{{ item.id }}">
+                           <input type="hidden" name="search" value="{{ search_query|default:'' }}">
+                           <label for="ts_price">Target Sell Price (M):</label>
+                           <input type="number" step="any" name="target_sell_price" id="ts_price" value="{% if target_sell %}{{ target_sell.target_sell_price|divide:1000000|default_if_none:''|floatformat:'-3g' }}{% endif %}">
+                           <button type="submit" name="update_target_sell">Update</button>
+                        </form>
+                   </div>
+                {% endif %}
+                {# ---- END ADMIN ONLY PRICE FORMS ---- #}
+
+                {# **** "LAST HIT" INFO **** #}
+                {% if accumulation and accumulation.accumulation_price > 0 or target_sell and target_sell.target_sell_price > 0 %}
+                    <div style="margin-top: 15px; padding-top: 10px; border-top: 1px solid #444;">
+                        {% if accumulation and accumulation.accumulation_price > 0 %}
+                        <p><span class="field-label">Acc. Price Last Hit:</span>
+                            <span class="field-value">
+                                {% if last_acc_hit_time %}{{ last_acc_hit_time|naturaltime }}{% else %}Never (in recorded history){% endif %}
+                            </span>
+                        </p>
+                        {% endif %}
+                        {% if target_sell and target_sell.target_sell_price > 0 %}
+                         <p><span class="field-label">Target Price Last Hit:</span>
+                            <span class="field-value">
+                                 {% if last_target_hit_time %}{{ last_target_hit_time|naturaltime }}{% else %}Never (in recorded history){% endif %}
+                            </span>
+                        </p>
+                        {% endif %}
+                    </div>
+                {% endif %}
+                {# **** END "LAST HIT" INFO **** #}
+
+            {% else %} {# Corresponds to {% if item %} #}
+                 {# Placeholder content when no item is found/searched #}
                  <div style="text-align:center;">
-                      <img src="{% static 'images/rs3_logo.webp' %}" alt="Default Image" class="item-image" style="opacity: 0.5;">
-                      <h2>Search Item</h2>
-                      <p>Enter an item name or alias above to see details and transaction history.</p>
-                      <p><span class="field-label">Global Realised Profit:</span> <span class="field-value">{{ global_realised_profit|floatformat:0|intcomma }}</span></p>
+                     <img src="{% static 'images/rs3_logo.webp' %}" alt="Default Image" class="item-image" style="opacity: 0.5;">
+                     <h2>Search Item</h2>
+                     <p>Enter an item name or alias above to see details and transaction history.</p>
+                     <p><span class="field-label">Global Realised Profit:</span> <span class="field-value">{{ global_realised_profit|floatformat:0|intcomma }}</span></p>
                  </div>
-            {% endif %}
-        </div>
+            {% endif %} {# End of {% if item %} #}
 
-        {# --- RIGHT PANEL: forms + add/edit transaction --- #}
-        <div class="right-panel">
-            {% if item %}
-                <form method="post" class="accum-target-form">
-                    {% csrf_token %}
-                    <input type="hidden" name="acc_item_id" value="{{ item.id }}">
-                    <input type="hidden" name="search_query_hidden" value="{{ search_query|default:'' }}">
-                    {% if page_obj.number %}<input type="hidden" name="page_hidden" value="{{ page_obj.number }}">{% endif %}
-                    <label for="acc_price">Accumulation Price (M):</label>
-                    {# Display/edit price in millions #}
-                    <input type="number" step="any" name="accumulation_price" id="acc_price" value="{% if accumulation %}{{ accumulation.accumulation_price|divide:1000000|default_if_none:''|floatformat:'-3g' }}{% endif %}">
-                    <button type="submit" name="update_accumulation">Update</button>
-                </form>
+        </div> {# <--- MOVED and CORRECTED closing tag for left-panel --> #}
 
-                <form method="post" class="accum-target-form">
-                    {% csrf_token %}
-                    <input type="hidden" name="ts_item_id" value="{{ item.id }}">
-                    <input type="hidden" name="search_query_hidden" value="{{ search_query|default:'' }}">
-                    {% if page_obj.number %}<input type="hidden" name="page_hidden" value="{{ page_obj.number }}">{% endif %}
-                    <label for="ts_price">Target Sell Price (M):</label>
-                    {# Display/edit price in millions #}
-                    <input type="number" step="any" name="target_sell_price" id="ts_price" value="{% if target_sell %}{{ target_sell.target_sell_price|divide:1000000|default_if_none:''|floatformat:'-3g' }}{% endif %}">
-                    <button type="submit" name="update_target_sell">Update</button>
-                </form>
-            {% endif %}
 
-            {# --- Add/Edit Transaction Form Section --- #}
-             <div class="transaction-form-section">
-                 {% if edit_form %}
-                    {# --- EDIT FORM --- #}
-                     <h3>Edit Transaction (ID: {{ edit_form.initial.transaction_id }})</h3>
-                     <form method="post">
-                         {% csrf_token %}
-                         <input type="hidden" name="search_query_hidden" value="{{ search_query|default:'' }}">
-                         {% if page_obj.number %}<input type="hidden" name="page_hidden" value="{{ page_obj.number }}">{% endif %}
-                         {{ edit_form.transaction_id }} {# Hidden ID field #}
-                         <div><label for="{{ edit_form.item_name.id_for_label }}">{{ edit_form.item_name.label }}:</label> {{ edit_form.item_name }}</div>
-                         <div><label for="{{ edit_form.trans_type.id_for_label }}">{{ edit_form.trans_type.label }}:</label> {{ edit_form.trans_type }}</div>
-                         <div><label for="{{ edit_form.price.id_for_label }}">{{ edit_form.price.label }} (M):</label> {{ edit_form.price }}</div>
-                         <div><label for="{{ edit_form.quantity.id_for_label }}">{{ edit_form.quantity.label }}:</label> {{ edit_form.quantity }}</div>
-                         <div><label for="{{ edit_form.date_of_holding.id_for_label }}">{{ edit_form.date_of_holding.label }}:</label> {{ edit_form.date_of_holding }}</div>
-                         {% if edit_form.errors %}<div style="color: #ff4d4d; margin-top: 10px;"><strong>Errors:</strong> {{ edit_form.errors }}</div>{% endif %}
-                         <button type="submit" name="update_transaction">Update Transaction</button>
-                          <a href="{% url 'trades:index' %}?search={{ search_query|urlencode }}{% if page_obj.number %}&page={{ page_obj.number }}{% endif %}" style="margin-left: 10px;">Cancel</a>
-                     </form>
-                 {% else %}
-                     {# --- ADD FORM --- #}
-                     <h3>Add Transaction</h3>
-                     <form method="post">
-                         {% csrf_token %}
-                         <input type="hidden" name="search_query_hidden" value="{{ search_query|default:'' }}">
-                         {% if page_obj.number %}<input type="hidden" name="page_hidden" value="{{ page_obj.number }}">{% endif %}
-                         <div><label for="{{ transaction_form.item_name.id_for_label }}">{{ transaction_form.item_name.label }}:</label> {{ transaction_form.item_name }}</div>
-                         <div><label for="{{ transaction_form.trans_type.id_for_label }}">{{ transaction_form.trans_type.label }}:</label> {{ transaction_form.trans_type }}</div>
-                         <div><label for="{{ transaction_form.price.id_for_label }}">{{ transaction_form.price.label }} (M):</label> {{ transaction_form.price }}</div>
-                         <div><label for="{{ transaction_form.quantity.id_for_label }}">{{ transaction_form.quantity.label }}:</label> {{ transaction_form.quantity }}</div>
-                         <div><label for="{{ transaction_form.date_of_holding.id_for_label }}">{{ transaction_form.date_of_holding.label }}:</label> {{ transaction_form.date_of_holding }}</div>
-                         {% if transaction_form.errors %}<div style="color: #ff4d4d; margin-top: 10px;"><strong>Errors:</strong> {{ transaction_form.errors }}</div>{% endif %}
-                         <button type="submit" name="add_transaction">Add Transaction</button>
-                     </form>
-                 {% endif %}
+        {# --- RIGHT PANEL: forms (Add Transaction / Placing Order / Edit Transaction) --- #}
+        <div class="right-panel"> {# <--- START right-panel (Now correctly follows left-panel) --> #}
+
+            {# --- Form Switcher Buttons --- #}
+            <div class="form-switcher">
+                <button type="button" id="showAddTransactionBtn" class="form-switch-btn active">Add Transaction</button>
+                <button type="button" id="showPlacingOrderBtn" class="form-switch-btn">Placing Order</button>
+            </div>
+
+            {# --- Edit Transaction Form Container --- #}
+            {% if edit_form %}
+             <div id="editTransactionFormContainer" class="form-container active">
+                {# ... Edit form content goes here ... #}
+                <div class="transaction-form-section">
+                    <h3>Edit Transaction (ID: {{ edit_form.initial.transaction_id }})</h3>
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="search" value="{{ search_query|default:'' }}">
+                        {% if user_page_obj.number %}<input type="hidden" name="user_page" value="{{ user_page_obj.number }}">{% endif %}
+                        {{ edit_form.transaction_id }}
+                        <div><label for="{{ edit_form.item_name.id_for_label }}">{{ edit_form.item_name.label }}:</label> {{ edit_form.item_name }}</div>
+                        <div><label for="{{ edit_form.trans_type.id_for_label }}">{{ edit_form.trans_type.label }}:</label> {{ edit_form.trans_type }}</div>
+                        <div><label for="{{ edit_form.price.id_for_label }}">{{ edit_form.price.label }} (M):</label> {{ edit_form.price }}</div>
+                        <div><label for="{{ edit_form.quantity.id_for_label }}">{{ edit_form.quantity.label }}:</label> {{ edit_form.quantity }}</div>
+                        <div><label for="{{ edit_form.date_of_holding.id_for_label }}">{{ edit_form.date_of_holding.label }}:</label> {{ edit_form.date_of_holding }}</div>
+                        {% if edit_form.errors %}<div style="color: #ff4d4d; margin-top: 10px;"><strong>Errors:</strong> {{ edit_form.errors }}</div>{% endif %}
+                        <div class="submit-section">
+                            <button type="submit" name="update_transaction">Update Transaction</button>
+                            <a href="{% url 'trades:index' %}?search={{ search_query|urlencode }}{% if user_page_obj.number %}&user_page={{ user_page_obj.number }}{% endif %}" style="margin-left: 10px;">Cancel</a>
+                        </div>
+                    </form>
+                </div>
              </div>
-        </div> {# End right-panel #}
-    </div> {# End content-row #}
+            {% endif %}
 
-    {# --- TRANSACTIONS TABLE --- #}
-    <h2>Transactions History {% if item %}- {{ item.name }}{% endif %}</h2>
+            {# --- Add Transaction Form Container --- #}
+            <div id="addTransactionFormContainer" class="form-container {% if not edit_form and active_form_name == 'add_transaction' %}active{% endif %}">
+                {# ... Add transaction form content goes here ... #}
+                 <div class="transaction-form-section">
+                    <h3>Add Transaction</h3>
+                     <form method="post" id="addTransactionForm">
+                        {% csrf_token %}
+                        <input type="hidden" name="search" value="{{ search_query|default:'' }}">
+                        {% if user_page_obj.number %}<input type="hidden" name="user_page" value="{{ user_page_obj.number }}">{% endif %}
+                        <div><label for="{{ add_transaction_form.item_name.id_for_label }}">{{ add_transaction_form.item_name.label }}:</label> {{ add_transaction_form.item_name }}</div>
+                        <div><label for="{{ add_transaction_form.price.id_for_label }}">{{ add_transaction_form.price.label }} (M):</label> {{ add_transaction_form.price }}</div>
+                        <div><label for="{{ add_transaction_form.quantity.id_for_label }}">{{ add_transaction_form.quantity.label }}:</label> {{ add_transaction_form.quantity }}</div>
+                        <div><label for="{{ add_transaction_form.date_of_holding.id_for_label }}">{{ add_transaction_form.date_of_holding.label }}:</label> {{ add_transaction_form.date_of_holding }}</div>
+                        <input type="hidden" name="{{ add_transaction_form.trans_type.name }}" id="id_add_trans_type" value="{{ add_transaction_form.trans_type.initial }}">
+                        <label>Transaction Type:</label>
+                        <div class="trans-type-buttons">
+                            <button type="button" class="btn-buy" data-value="Buy" data-form="addTransactionForm">Buy</button>
+                            <button type="button" class="btn-sell" data-value="Sell" data-form="addTransactionForm">Sell</button>
+                            <button type="button" class="btn-buy" data-value="Instant Buy" data-form="addTransactionForm">Instant Buy</button>
+                            <button type="button" class="btn-sell" data-value="Instant Sell" data-form="addTransactionForm">Instant Sell</button>
+                        </div>
+                        {% if add_transaction_form.errors %}
+                            <div style="color: #ff4d4d; margin-top: 10px;"><strong>Errors:</strong>
+                                {% for field, errors in add_transaction_form.errors.items %}
+                                    <p>{{ field }}: {{ errors|join:", " }}</p>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                         <div class="submit-section">
+                            <button type="submit" name="add_transaction_submit">Add Transaction</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            {# --- Placing Order Form Container --- #}
+            <div id="placingOrderFormContainer" class="form-container {% if not edit_form and active_form_name == 'placing_order' %}active{% endif %}">
+                 {# ... Placing order form content goes here ... #}
+                  <div class="transaction-form-section">
+                    <h3>Placing Order</h3>
+                    <form method="post" id="placingOrderForm">
+                        {% csrf_token %}
+                        <input type="hidden" name="search" value="{{ search_query|default:'' }}">
+                         {% if placing_orders_page_obj.number %}<input type="hidden" name="placing_page" value="{{ placing_orders_page_obj.number }}">{% endif %}
+                        <div><label for="{{ placing_order_form.item_name.id_for_label }}">{{ placing_order_form.item_name.label }}:</label> {{ placing_order_form.item_name }}</div>
+                        <div><label for="{{ placing_order_form.price.id_for_label }}">{{ placing_order_form.price.label }} (M):</label> {{ placing_order_form.price }}</div>
+                        <div><label for="{{ placing_order_form.quantity.id_for_label }}">{{ placing_order_form.quantity.label }}:</label> {{ placing_order_form.quantity }}</div>
+                        <div><label for="{{ placing_order_form.date_of_holding.id_for_label }}">{{ placing_order_form.date_of_holding.label }}:</label> {{ placing_order_form.date_of_holding }}</div>
+                        <input type="hidden" name="{{ placing_order_form.trans_type.name }}" id="id_placing_trans_type" value="{{ placing_order_form.trans_type.initial }}">
+                        <label>Order Type:</label>
+                        <div class="trans-type-buttons">
+                            <button type="button" class="btn-buy" data-value="Placing Buy" data-form="placingOrderForm">Placing Buy</button>
+                            <button type="button" class="btn-sell" data-value="Placing Sell" data-form="placingOrderForm">Placing Sell</button>
+                        </div>
+                        {% if placing_order_form.errors %}
+                             <div style="color: #ff4d4d; margin-top: 10px;"><strong>Errors:</strong>
+                                {% for field, errors in placing_order_form.errors.items %}
+                                    <p>{{ field }}: {{ errors|join:", " }}</p>
+                                {% endfor %}
+                             </div>
+                        {% endif %}
+                         <div class="submit-section">
+                            <button type="submit" name="placing_order_submit">Place Order</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+        </div> {# <--- End right-panel --> #}
+
+    </div> {# <--- End content-row --> #}
+
+    {# --- PLACING ORDERS SECTION with Filters --- #}
+    <div class="filter-buttons">
+        <h2>{{ placing_orders_title }}</h2>
+         {# Build URLs preserving other parameters #}
+        {% url 'trades:index' as base_url %}
+        {% with request.GET.urlencode as current_params %}
+             <a href="{{ base_url }}?{% query_transform placing_filter='my' %}"><button ...>My Orders</button></a>
+             <a href="{{ base_url }}?{% query_transform placing_filter='all' %}"><button ...>All Orders</button></a>
+        {% endwith %}
+    </div>
     <div style="overflow-x: auto;">
         <table>
             <thead>
                 <tr>
+                    {# ... table headers ... #}
                     <th>ID</th>
-                    <th>Item Name</th>
+                    <th>Item</th>
                     <th>Type</th>
                     <th>Price</th>
                     <th>Quantity</th>
@@ -372,49 +547,134 @@
                 </tr>
             </thead>
             <tbody>
-            {% for t in page_obj %} {# Loop through paginated items #}
+                {% for order in placing_orders_page_obj %}
+                    <tr>
+                        {# ... table cells ... #}
+                         <td>{{ order.id }}</td>
+                        <td>{{ order.item.name }}</td>
+                        <td>{{ order.trans_type }}</td>
+                        <td>{{ order.price|floatformat:0|intcomma }}</td>
+                        <td>{{ order.quantity|floatformat:0|intcomma }}</td>
+                         {# Ensure naturaltime is used #}
+                        <td class="transaction-time">{{ order.date_of_holding|naturaltime }}</td>
+                        <td>{% if order.user %} {{ order.user.username }} {% else %} Unknown {% endif %}</td>
+                         <td class="action-buttons">
+                             {% if order.user == user or request.user.username == ADMIN_USERNAME %}
+                                 <a href="{{ base_url }}?{% query_transform edit_trans=order.id %}">Edit</a> |
+                                 <form method="post" style="display:inline;" onsubmit="return confirm('Delete placing order ID {{ order.id }}?');">
+                                     {% csrf_token %}
+                                     <input type="hidden" name="transaction_id" value="{{ order.id }}">
+                                     {# Include necessary hidden fields for context preservation #}
+                                     <input type="hidden" name="search" value="{{ search_query|default:'' }}">
+                                     <input type="hidden" name="placing_filter" value="{{ placing_filter }}">
+                                     <input type="hidden" name="history_filter" value="{{ history_filter }}">
+                                     {% if placing_orders_page_obj.number %}<input type="hidden" name="placing_page" value="{{ placing_orders_page_obj.number }}">{% endif %}
+                                     {% if user_page_obj.number %}<input type="hidden" name="user_page" value="{{ user_page_obj.number }}">{% endif %}
+                                     <button type="submit" name="delete_transaction">Delete</button>
+                                 </form>
+                             {% else %} N/A {% endif %}
+                         </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="8" style="text-align: center;">No placing orders found matching filters.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {# --- Pagination Controls for Placing Orders --- #}
+    <div class="pagination">
+        {% if placing_orders_page_obj.has_other_pages %}
+            <span class="step-links">
+                {% if placing_orders_page_obj.has_previous %}
+                    <a href="{{ base_url }}?{% query_transform placing_page=1 %}">&laquo; first</a>  {# FIXED #}
+                    <a href="{{ base_url }}?{% query_transform placing_page=placing_orders_page_obj.previous_page_number %}">previous</a> {# FIXED #}
+                {% endif %}
+                <span class="current-page"> Page {{ placing_orders_page_obj.number }} of {{ placing_orders_page_obj.paginator.num_pages }} </span>
+                {% if placing_orders_page_obj.has_next %}
+                    <a href="{{ base_url }}?{% query_transform placing_page=placing_orders_page_obj.next_page_number %}">next</a> {# FIXED #}
+                    <a href="{{ base_url }}?{% query_transform placing_page=placing_orders_page_obj.paginator.num_pages %}">last &raquo;</a> {# FIXED #}
+                {% endif %}
+            </span>
+        {% endif %}
+    </div>
+
+
+    {# --- TRANSACTION HISTORY SECTION with Filters --- #}
+     <div class="filter-buttons">
+        <h2>{{ history_title }}</h2>
+        {% url 'trades:index' as base_url %} {# Define base_url if not already defined in this scope #}
+        {% with request.GET.urlencode as current_params %} {# You don't actually need current_params if only using query_transform #}
+             <a href="{{ base_url }}?{% query_transform history_filter='my' %}"><button class="{% if history_filter == 'my' %}active{% endif %}">My History</button></a> {# FIXED #}
+             <a href="{{ base_url }}?{% query_transform history_filter='all' %}"><button class="{% if history_filter == 'all' %}active{% endif %}">All History</button></a> {# FIXED #}
+        {% endwith %}
+    </div>
+    <div style="overflow-x: auto;">
+        <table>
+            <thead>
                 <tr>
+                    {# ... table headers ... #}
+                    <th>ID</th>
+                    <th>Item Name</th>
+                    <th>Type</th>
+                    <th>Price</th>
+                    <th>Quantity</th>
+                    <th>Date</th>
+                    <th>User</th> {# Added User column #}
+                    <th>Realised Profit</th>
+                    <th>Cumul. Profit</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for t in item_transactions %} {# Loop through potentially filtered items #}
+                <tr>
+                    {# ... table cells ... #}
                     <td>{{ t.id }}</td>
                     <td>{{ t.item.name }}</td>
                     <td>{{ t.trans_type }}</td>
                     <td>{{ t.price|floatformat:0|intcomma }}</td>
                     <td>{{ t.quantity|floatformat:0|intcomma }}</td>
-                    <td>{{ t.date_of_holding|date:"Y-m-d" }}</td>
+                    {# Ensure naturaltime is used #}
+                    <td class="transaction-time">{{ t.date_of_holding|naturaltime }}</td>
+                    {# Display User #}
                     <td>{% if t.user %} {{ t.user.username }} {% else %} Unknown {% endif %}</td>
+                    <td>{{ t.realised_profit|floatformat:0|intcomma }}</td>
+                    <td>{{ t.cumulative_profit|floatformat:0|intcomma }}</td>
                     <td class="action-buttons">
-                        {% if t.user == user %}
-                            <a href="{% url 'trades:index' %}?search={{ search_query|urlencode }}&edit_trans={{ t.id }}{% if page_obj.number %}&page={{ page_obj.number }}{% endif %}">Edit</a> |
-                            <form method="post" style="display:inline;" onsubmit="return confirm('Delete transaction ID {{ t.id }}?');">
-                                {% csrf_token %}
-                                <input type="hidden" name="transaction_id" value="{{ t.id }}">
-                                <input type="hidden" name="search_query_hidden" value="{{ search_query|default:'' }}">
-                                {% if page_obj.number %}<input type="hidden" name="page_hidden" value="{{ page_obj.number }}">{% endif %}
-                                <button type="submit" name="delete_transaction">Delete</button>
-                            </form>
-                        {% else %} N/A {% endif %}
+                         {% if t.user == user or request.user.username == ADMIN_USERNAME %}
+                             <a href="{{ base_url }}?{% query_transform edit_trans=t.id %}">Edit</a> |
+                             <form method="post" style="display:inline;" onsubmit="return confirm('Delete transaction ID {{ t.id }}?');">
+                                 {% csrf_token %}
+                                 <input type="hidden" name="transaction_id" value="{{ t.id }}">
+                                 {# Include necessary hidden fields for context preservation #}
+                                 <input type="hidden" name="search" value="{{ search_query|default:'' }}">
+                                 <input type="hidden" name="placing_filter" value="{{ placing_filter }}">
+                                 <input type="hidden" name="history_filter" value="{{ history_filter }}">
+                                 {% if placing_orders_page_obj.number %}<input type="hidden" name="placing_page" value="{{ placing_orders_page_obj.number }}">{% endif %}
+                                 {% if user_page_obj.number %}<input type="hidden" name="user_page" value="{{ user_page_obj.number }}">{% endif %}
+                                 <button type="submit" name="delete_transaction">Delete</button>
+                             </form>
+                          {% else %} N/A {% endif %}
                     </td>
                 </tr>
             {% empty %}
-                <tr><td colspan="8" style="text-align: center;">No transactions found{% if search_query %} for '{{ search_query }}'{% endif %}.</td></tr>
+                <tr><td colspan="10" style="text-align: center;">No transactions found matching filters.</td></tr>
             {% endfor %}
             </tbody>
         </table>
     </div>
-
-    {# --- Pagination Controls FIXED --- #}
+    {# --- Pagination Controls for User's Transactions --- #}
     <div class="pagination">
-        {% if page_obj.has_other_pages %}
+         {% if user_page_obj.has_other_pages %}
             <span class="step-links">
-                {% if page_obj.has_previous %}
-                    <a href="?search={{ search_query|urlencode }}&page=1">&laquo; first</a>
-                    <a href="?search={{ search_query|urlencode }}&page={{ page_obj.previous_page_number }}">previous</a>
+                {% if user_page_obj.has_previous %}
+                    <a href="{{ base_url }}?{% query_transform user_page=1 %}">&laquo; first</a> {# FIXED #}
+                    <a href="{{ base_url }}?{% query_transform user_page=user_page_obj.previous_page_number %}">previous</a> {# FIXED #}
                 {% endif %}
-
-                <span class="current-page"> Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} </span>
-
-                {% if page_obj.has_next %}
-                    <a href="?search={{ search_query|urlencode }}&page={{ page_obj.next_page_number }}">next</a>
-                    <a href="?search={{ search_query|urlencode }}&page={{ page_obj.paginator.num_pages }}">last &raquo;</a>
+                <span class="current-page"> Page {{ user_page_obj.number }} of {{ user_page_obj.paginator.num_pages }} </span>
+                {% if user_page_obj.has_next %}
+                    <a href="{{ base_url }}?{% query_transform user_page=user_page_obj.next_page_number %}">next</a> {# FIXED #}
+                    <a href="{{ base_url }}?{% query_transform user_page=user_page_obj.paginator.num_pages %}">last &raquo;</a> {# FIXED #}
                 {% endif %}
             </span>
         {% endif %}
@@ -423,14 +683,14 @@
     {# --- Embedded Charts --- #}
     {% if item %}
         <hr style="border-color: #444;">
-        <div style="text-align: center;">
+        <div class="chart-container" style="text-align: center;">
             <h2>Buy/Sell Price Chart (Embedded)</h2>
             <img src="{% url 'trades:item_price_chart' %}?search={{ search_query|urlencode }}&timeframe={{ timeframe|default:'Daily'|urlencode }}"
-                 alt="Buy-Sell Price Chart" style="max-width:100%; height: auto; border: 1px solid #444; margin-bottom: 20px;">
+                 alt="Buy-Sell Price Chart">
 
             <h2>Item Cumulative Profit (Embedded)</h2>
             <img src="{% url 'trades:item_profit_chart' %}?search={{ search_query|urlencode }}&timeframe={{ timeframe|default:'Daily'|urlencode }}"
-                 alt="Item Profit Chart" style="max-width:100%; height: auto; border: 1px solid #444;">
+                 alt="Item Profit Chart">
         </div>
     {% endif %}
 
@@ -439,27 +699,110 @@
     {# --- Bootstrap JavaScript Bundle (Needed for alert dismissal AND the auto-close script) --- #}
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz" crossorigin="anonymous"></script>
 
-    {# --- Add this Custom JavaScript for Auto-Dismissing Alerts --- #}
+    {# --- Custom JavaScript for Form Switching and Buttons --- #}
     <script>
-        // Wait for the full page to load
-        window.addEventListener('load', function() {
-            // Select all alert elements that have the dismissible class
-            const autoDismissAlerts = document.querySelectorAll('.alert.alert-dismissible');
+        document.addEventListener('DOMContentLoaded', function() {
+            const addTransactionBtn = document.getElementById('showAddTransactionBtn');
+            const placingOrderBtn = document.getElementById('showPlacingOrderBtn');
+            const addTransactionContainer = document.getElementById('addTransactionFormContainer');
+            const placingOrderContainer = document.getElementById('placingOrderFormContainer');
+            const editTransactionContainer = document.getElementById('editTransactionFormContainer'); // Get edit container
 
-            // Set the timeout duration in milliseconds (e.g., 5000ms = 5 seconds)
-            const dismissTimeout = 5000;
+            const formSwitchButtons = document.querySelectorAll('.form-switch-btn');
+            const formContainers = document.querySelectorAll('.right-panel .form-container'); // Select only containers in right panel
+
+            // Function to switch active form
+            function switchForm(targetContainer) {
+                 // Don't switch if edit form is active
+                 if (editTransactionContainer && editTransactionContainer.classList.contains('active')) {
+                    return;
+                 }
+
+                 formContainers.forEach(container => {
+                    container.classList.remove('active');
+                 });
+                 formSwitchButtons.forEach(button => {
+                     button.classList.remove('active');
+                 });
+
+                 if (targetContainer) {
+                    targetContainer.classList.add('active');
+                    // Activate corresponding button
+                    if(targetContainer.id === 'addTransactionFormContainer') {
+                        addTransactionBtn.classList.add('active');
+                    } else if (targetContainer.id === 'placingOrderFormContainer') {
+                        placingOrderBtn.classList.add('active');
+                    }
+                 }
+            }
+
+             // Initial state check (only if edit form isn't showing)
+             if (!editTransactionContainer) {
+                  // Determine which form was active server-side (if neither, default to add)
+                  if (placingOrderContainer && placingOrderContainer.classList.contains('active')) {
+                      switchForm(placingOrderContainer);
+                  } else if (addTransactionContainer) { // Default to add transaction
+                      switchForm(addTransactionContainer);
+                  }
+             } else {
+                 // If edit form exists, make sure switch buttons are not active
+                 formSwitchButtons.forEach(button => {
+                     button.classList.remove('active');
+                 });
+             }
+
+
+            // Event Listeners for switching forms (only if edit form is not present)
+            if (addTransactionBtn && !editTransactionContainer) {
+                addTransactionBtn.addEventListener('click', () => switchForm(addTransactionContainer));
+            }
+            if (placingOrderBtn && !editTransactionContainer) {
+                placingOrderBtn.addEventListener('click', () => switchForm(placingOrderContainer));
+            }
+
+            // --- Transaction Type Button Logic ---
+            const transTypeButtons = document.querySelectorAll('.trans-type-buttons button');
+
+            transTypeButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const value = this.dataset.value;
+                    const formId = this.dataset.form; // Get which form this button belongs to
+                    const formElement = document.getElementById(formId);
+                    const hiddenInput = formElement.querySelector('input[type="hidden"][name="trans_type"]'); // Find the hidden input within that form
+
+                    if (hiddenInput) {
+                        hiddenInput.value = value; // Set the hidden input's value
+
+                        // Update button visual state (within the same group)
+                        const parentButtonDiv = this.closest('.trans-type-buttons');
+                        parentButtonDiv.querySelectorAll('button').forEach(btn => {
+                            btn.classList.remove('selected');
+                        });
+                        this.classList.add('selected');
+                    } else {
+                        console.error("Hidden trans_type input not found for form:", formId);
+                    }
+                });
+
+                // Set initial 'selected' state based on hidden input value
+                 const formId = button.dataset.form;
+                 const formElement = document.getElementById(formId);
+                 const hiddenInput = formElement.querySelector('input[type="hidden"][name="trans_type"]');
+                 if (hiddenInput && button.dataset.value === hiddenInput.value) {
+                     button.classList.add('selected');
+                 }
+            });
+
+            // --- Auto-Dismissing Alerts ---
+            const autoDismissAlerts = document.querySelectorAll('.alert.alert-dismissible');
+            const dismissTimeout = 5000; // 5 seconds
 
             autoDismissAlerts.forEach(function(alertElement) {
-                // Set a timer for each alert
                 setTimeout(function() {
-                    // Use Bootstrap's built-in Alert instance to trigger the close method
-                    // This ensures the fade-out animation works correctly
                     const alertInstance = bootstrap.Alert.getOrCreateInstance(alertElement);
                     if (alertInstance) {
-                        alertInstance.close(); // Trigger the close method
+                        alertInstance.close();
                     }
-                    // If Bootstrap JS failed, this would be a less graceful fallback:
-                    // else { alertElement.style.display = 'none'; }
                 }, dismissTimeout);
             });
         });

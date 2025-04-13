@@ -30,6 +30,9 @@
                     .top-nav .nav-buttons li a:hover {
                         background-color: #00a874;
                     }
+
+                    .timezone-form p { margin-bottom: 5px;}
+                    .timezone-form select { max-width: 400px; width: 100%;}
     </style>
 </head>
 <body>
@@ -54,17 +57,49 @@
             </ul>
         </div>
 
+        {# --- Display Messages --- #}
+         <div class="messages-container" style="max-width: 700px; margin: 10px auto;">
+            {% if messages %}
+                {% for message in messages %}
+                     {# ... logic to display messages using Bootstrap alert classes ... #}
+                {% endfor %}
+            {% endif %}
+        </div>
+
         <h1>Account Page</h1>
         <p>Welcome, {{ user.username }}!</p>
+
+         {# --- ADD TIMEZONE FORM --- #}
+         <hr>
+         <div class="timezone-form">
+            <h2>Timezone Setting</h2>
+            <p>Times on the site will be displayed relative to this timezone.</p>
+            <p>Your current active timezone is: <strong>{{ current_active_timezone }}</strong></p>
+            <form method="post">
+                {% csrf_token %}
+                {{ profile_form.as_p }} {# Render the profile form #}
+                <button type="submit">Update Timezone</button>
+            </form>
+        </div>
+        <hr>
+         {# --- END TIMEZONE FORM --- #}
+
+
         <p>
-            <!-- Link to request password reset -->
-            <a href="{% url 'trades:password_reset_request' %}">Request Password Reset</a>
+            {# Link to request password reset #}
+            <a href="{% url 'password_reset' %}">Request Password Reset</a> {# Use global name #}
         </p>
-        {% if user.username == "Arblack" %}
+        {% if user.username == "Arblack" or user.is_staff %} {# Allow staff too #}
         <p>
             <a href="{% url 'trades:user_management' %}">Manage Users</a>
         </p>
         {% endif %}
     </div>
+    {# --- Bootstrap JS --- #}
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    {# --- Alert dismissal JS --- #}
+     <script>
+        // Add alert dismissal JS here if using messages
+     </script>
 </body>
 </html>

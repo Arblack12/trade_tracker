@@ -1,73 +1,89 @@
 # trades/views.py
-
-#!/usr/bin/env python
-"""Django views for the trades app."""
+# Standard library imports
+from django.contrib.auth import get_user_model
 import io
-import numpy as np  # <-- ADDED for NaN replacements
-import pandas as pd
 from datetime import datetime
-from django.shortcuts import render, redirect, get_object_or_404
+
+# Django imports
+from django.shortcuts import render, redirect, get_object_or_404, Http404
 from django.contrib import messages
 from django.http import HttpResponse
-from django.db.models import Sum, Avg, Max
-from django.utils import timezone
+from django.db.models import Sum, Avg, Max, F, ExpressionWrapper, fields
+from django.utils import timezone # Already imported
 from django.urls import reverse
 from django.utils.http import urlencode
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login, authenticate, logout
-from django.contrib.auth.models import User
-from django.db import transaction  # For atomic transactions
-import matplotlib.pyplot as plt
-from matplotlib.ticker import StrMethodFormatter
-import matplotlib
-matplotlib.use("Agg")
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from django.db import transaction as db_transaction
 
-# Force matplotlib to use a non-interactive backend so that no GUI is started.
+# Third-party imports
 import matplotlib
-matplotlib.use("Agg")
+matplotlib.use("Agg") # Set backend before importing pyplot
+import matplotlib.pyplot as plt
+from matplotlib.ticker import StrMethodFormatter, MaxNLocator
+import pandas as pd
+import numpy as np
+import pytz
 
-from .models import WealthData, UserBan
-from .forms import WealthDataForm
-from django.db.models import Q
-
+# Local application imports
 from .models import (
     Transaction, Item, Alias, AccumulationPrice, TargetSellPrice,
-    Membership, WealthData, Watchlist, User
+    Membership, Watchlist, UserProfile, UserBan, WealthData
 )
 from .forms import (
     TransactionManualItemForm, TransactionEditForm, AliasForm, AccumulationPriceForm,
-    TargetSellPriceForm, MembershipForm, WealthDataForm, WatchlistForm, PlacingOrderForm
+    TargetSellPriceForm, MembershipForm, WatchlistForm, PlacingOrderForm,
+    UserProfileForm, WealthDataForm
 )
+# Import middleware if needed (usually not needed in views)
+# from .middleware import TimezoneMiddleware
 
+ADMIN_USERNAME = "Arblack"
+User = get_user_model()
 
+# ==========================
+# index View Modifications
+# ==========================
+@login_required # Ensure user is logged in
 def index(request):
     """
     Unified homepage. Shows user's transactions for a searched item.
     Includes forms for 'Add Transaction' and 'Placing Order'.
     Displays a list of all current 'Placing Orders'.
+    Allows ADMIN_USERNAME to update prices and edit/delete any transaction.
     """
-    if not request.user.is_authenticated:
-        return redirect('trades:login_view')
+    # Ensure authenticated check remains (already done by decorator)
+    # if not request.user.is_authenticated:
+    #     return redirect('trades:login_view')
 
     timeframe = request.GET.get('timeframe', 'Daily')
     edit_form = None
     add_transaction_form = TransactionManualItemForm() # Instantiate Add form
     placing_order_form = PlacingOrderForm() # Instantiate Place Order form
     active_form_name = 'add_transaction' # Default active form
+    # --- Handle GET parameters for filtering ---
+    placing_filter = request.GET.get('placing_filter', 'all') # Default to 'all'
+    history_filter = request.GET.get('history_filter', 'my') # Default to 'my'
 
     # --- Handle Edit Request (GET) ---
     if 'edit_trans' in request.GET:
         try:
             t_id = int(request.GET['edit_trans'])
-            t_obj = get_object_or_404(Transaction, id=t_id, user=request.user)
+            # **** ADMIN CHECK FOR EDIT FETCH ****
+            if request.user.username == ADMIN_USERNAME:
+                t_obj = get_object_or_404(Transaction, id=t_id) # Admin gets any transaction
+            else:
+                # Regular user can only get their own
+                t_obj = get_object_or_404(Transaction, id=t_id, user=request.user)
+
             form = TransactionEditForm()
-            form.load_initial(t_obj)
+            form.load_initial(t_obj) # Pass the fetched transaction object
             edit_form = form
             # If editing, maybe default to showing the 'Add Transaction' form area
-            active_form_name = 'add_transaction'
-        except Transaction.DoesNotExist:
-            messages.error(request, "Transaction to edit not found or not owned by you.")
+            active_form_name = 'add_transaction' # Or set a specific 'edit' active state?
+        except (Transaction.DoesNotExist, ValueError): # Catch potential errors
+            messages.error(request, "Transaction to edit not found or permission denied.")
             # Redirect to avoid broken state, remove edit_trans param
             query_params = request.GET.copy()
             query_params.pop('edit_trans', None)
@@ -75,7 +91,7 @@ def index(request):
 
     # --- Handle Form Submissions (POST) ---
     if request.method == 'POST':
-        item_name_for_redirect = request.POST.get('item_name') # Get item name for redirect
+        item_name_for_redirect = request.POST.get('item_name') # Get item name for redirect if needed
 
         # Determine which form was submitted
         if 'add_transaction_submit' in request.POST:
@@ -84,7 +100,7 @@ def index(request):
             if tform.is_valid():
                 new_trans = tform.save(user=request.user)
                 messages.success(request, f"Transaction for {new_trans.item.name} added successfully!")
-                calculate_fifo_for_user(request.user)
+                calculate_fifo_for_user(request.user) # Use db_transaction alias if needed
                 url = reverse('trades:index')
                 qs = urlencode({'search': new_trans.item.name}) # Redirect to the item searched
                 return redirect(f"{url}?{qs}")
@@ -108,89 +124,126 @@ def index(request):
                 placing_order_form = pform # Show form with errors
 
         elif 'update_transaction' in request.POST: # Handle EDIT submission
-            active_form_name = 'add_transaction' # Keep add form area visible
+            active_form_name = 'add_transaction' # Keep add form area visible? Or make 'edit' active?
             ef = TransactionEditForm(request.POST)
             if ef.is_valid():
                 try:
-                    updated_trans = ef.update_transaction(user=request.user) # Pass user for validation
+                    # Pass user to form's update method for permission check there
+                    updated_trans = ef.update_transaction(user=request.user)
                     messages.success(request, "Transaction updated.")
-                    calculate_fifo_for_user(request.user)
+                    # Recalculate FIFO for the owner of the transaction
+                    # We need the user object from the transaction itself now
+                    if updated_trans.user:
+                         calculate_fifo_for_user(updated_trans.user)
                     url = reverse('trades:index')
                     qs = urlencode({'search': updated_trans.item.name})
                     return redirect(f"{url}?{qs}")
-                except Http404: # Or whatever error get_object_or_404 raises
+                except Http404: # Catch permission errors from the form's save method
                      messages.error(request, "Transaction not found or permission denied.")
                      return redirect(reverse('trades:index'))
+                # Catch any other potential errors during update
+                except Exception as e:
+                     messages.error(request, f"An unexpected error occurred during update: {e}")
+                     edit_form = ef # Show edit form with errors
+
 
             else:
                 messages.error(request, "Error updating transaction.")
                 edit_form = ef # Show edit form with errors
 
         elif 'delete_transaction' in request.POST:
-            active_form_name = 'add_transaction' # Keep add form area visible
+            # No specific active form needed, it redirects anyway
             t_id = request.POST.get('transaction_id')
             if t_id:
                 try:
-                    t_obj = get_object_or_404(Transaction, id=t_id, user=request.user)
+                    # **** ADMIN CHECK FOR DELETE FETCH ****
+                    if request.user.username == ADMIN_USERNAME:
+                        t_obj = get_object_or_404(Transaction, id=t_id) # Admin deletes any
+                    else:
+                        t_obj = get_object_or_404(Transaction, id=t_id, user=request.user) # User deletes own
+
                     item_name = t_obj.item.name
+                    owner_user = t_obj.user # Get owner before deleting
                     t_obj.delete()
                     messages.success(request, "Transaction deleted.")
-                    calculate_fifo_for_user(request.user)
+
+                    # Recalculate FIFO for the user whose transaction was deleted
+                    if owner_user:
+                        calculate_fifo_for_user(owner_user)
+
                     url = reverse('trades:index')
                     qs = urlencode({'search': item_name}) # Go back to the item's page
                     return redirect(f"{url}?{qs}")
-                except Transaction.DoesNotExist:
-                    messages.error(request, "Transaction not found or not owned by you.")
+                except (Transaction.DoesNotExist, ValueError):
+                    messages.error(request, "Transaction not found or permission denied.")
                     # Redirect to avoid broken state
                     query_params = request.GET.copy()
-                    query_params.pop('delete_transaction', None) # Remove if it was a GET param somehow
+                    # Ensure delete_transaction isn't a GET param causing loops
+                    query_params.pop('delete_transaction', None)
                     return redirect(f"{reverse('trades:index')}?{urlencode(query_params)}")
+            else:
+                 messages.error(request, "Transaction ID missing for deletion.")
+                 return redirect(reverse('trades:index'))
+
 
         elif 'update_accumulation' in request.POST or 'update_target_sell' in request.POST:
-             # Handle Accumulation/Target Sell Price Updates (Keep existing logic)
-             item_id = request.POST.get('acc_item_id') or request.POST.get('ts_item_id')
-             item_name_for_redirect = None # Will be set below if successful
+            # **** ADMIN CHECK FOR PRICE UPDATES ****
+            if request.user.username != ADMIN_USERNAME:
+                messages.error(request, "Permission denied: Only administrators can update prices.")
+                # Redirect back, preserving search query if possible
+                search_query_val = request.POST.get('search', '') # Get search from POST if possible
+                url = reverse('trades:index')
+                if search_query_val:
+                     qs = urlencode({'search': search_query_val})
+                     return redirect(f"{url}?{qs}")
+                else:
+                     return redirect(url)
+            # ---- END ADMIN CHECK ----
 
-             if item_id:
-                 try:
-                     item_obj = Item.objects.get(id=item_id)
-                     item_name_for_redirect = item_obj.name # Get name for redirect
-                     if 'update_accumulation' in request.POST:
-                         acc_price = request.POST.get('accumulation_price')
-                         if acc_price is not None:
+            # Handle Accumulation/Target Sell Price Updates (Keep existing logic)
+            item_id = request.POST.get('acc_item_id') or request.POST.get('ts_item_id')
+            item_name_for_redirect = None # Will be set below if successful
+
+            if item_id:
+                try:
+                    item_obj = Item.objects.get(id=item_id)
+                    item_name_for_redirect = item_obj.name # Get name for redirect
+                    if 'update_accumulation' in request.POST:
+                        acc_price_str = request.POST.get('accumulation_price')
+                        if acc_price_str is not None:
                             ap, _ = AccumulationPrice.objects.get_or_create(item=item_obj)
-                            ap.accumulation_price = float(acc_price) * 1_000_000 # Convert from millions
+                            ap.accumulation_price = float(acc_price_str) * 1_000_000 # Convert from millions
                             ap.save()
                             messages.success(request, f"Accumulation price updated for {item_obj.name}.")
-                         else:
+                        else:
                             messages.error(request, "Accumulation price value missing.")
 
-                     elif 'update_target_sell' in request.POST:
-                         ts_price = request.POST.get('target_sell_price')
-                         if ts_price is not None:
+                    elif 'update_target_sell' in request.POST:
+                        ts_price_str = request.POST.get('target_sell_price')
+                        if ts_price_str is not None:
                             tsp, _ = TargetSellPrice.objects.get_or_create(item=item_obj)
-                            tsp.target_sell_price = float(ts_price) * 1_000_000 # Convert from millions
+                            tsp.target_sell_price = float(ts_price_str) * 1_000_000 # Convert from millions
                             tsp.save()
                             messages.success(request, f"Target sell price updated for {item_obj.name}.")
-                         else:
+                        else:
                              messages.error(request, "Target sell price value missing.")
 
-                 except Item.DoesNotExist:
-                     messages.error(request, "Item not found for price update.")
-                 except (ValueError, TypeError):
-                     messages.error(request, "Invalid price format entered.")
+                except Item.DoesNotExist:
+                    messages.error(request, "Item not found for price update.")
+                except (ValueError, TypeError):
+                    messages.error(request, "Invalid price format entered.")
 
-             else:
-                 messages.error(request, "Item ID missing for price update.")
+            else:
+                messages.error(request, "Item ID missing for price update.")
 
-             # Redirect back to the item page after update
-             url = reverse('trades:index')
-             if item_name_for_redirect:
-                 qs = urlencode({'search': item_name_for_redirect})
-                 return redirect(f"{url}?{qs}")
-             else:
-                 # If item lookup failed, just redirect to index without search
-                 return redirect(url)
+            # Redirect back to the item page after update
+            url = reverse('trades:index')
+            if item_name_for_redirect:
+                qs = urlencode({'search': item_name_for_redirect})
+                return redirect(f"{url}?{qs}")
+            else:
+                # If item lookup failed, just redirect to index without search
+                return redirect(url)
 
         else:
             # If no known form action, perhaps redirect or show a generic error
@@ -199,20 +252,29 @@ def index(request):
 
     # --- Item Search and Data Fetching (GET requests and after POST redirects) ---
     search_query = request.GET.get('search', '').strip()
+    # ... (initialize variables: item_obj, stats=0, last_hit_times=None etc.) ...
     item_obj = None
     item_alias = None
     accumulation_obj = None
     target_obj = None
-    item_transactions_qs = Transaction.objects.none()
-    user_page_obj = None # Paginated user transactions
-    placing_orders_qs = Transaction.objects.none()
-    placing_orders_page_obj = None # Paginated placing orders
-    total_sold = 0
+    item_transactions_qs = Transaction.objects.none() # Start with empty queryset
+    user_page_obj = None
+    placing_orders_qs = Transaction.objects.none() # Start with empty queryset
+    placing_orders_page_obj = None
+
+    # **** INITIALIZE VARIABLES WITH DEFAULTS ****
+    user_items_per_page = 10   # <--- ADD INITIALIZATION HERE
+    placing_orders_per_page = 10 # <-- Also ensure this is defined before use if needed elsewhere
+    total_sold_qty = 0
     remaining_qty = 0
     avg_sold_price = 0
     item_profit = 0
     item_image_url = ""
+    last_acc_hit_time = None
+    last_target_hit_time = None
+    history_title = ""
 
+    # This calculation can stay here as it doesn't depend on search_query
     global_realised_profit = Transaction.objects.filter(user=request.user).aggregate(total=Max('cumulative_profit'))['total'] or 0
 
     # --- Find Item based on search query ---
@@ -235,95 +297,154 @@ def index(request):
             if item_alias and item_alias.image_file:
                 item_image_url = item_alias.image_file.url
 
-            # *** Get User's transactions for this item (Paginated) ***
-            item_transactions_qs = Transaction.objects.filter(
-                item=item_obj, user=request.user
-            ).exclude( # Exclude placing orders from user's main history
+            # **** Query for Price Hit Timestamps ****
+            if accumulation_obj:
+                last_acc_hit = Transaction.objects.filter(
+                    item=item_obj,
+                    trans_type__in=[Transaction.BUY, Transaction.INSTANT_BUY],
+                    price__lte=accumulation_obj.accumulation_price # Price less than or equal to accumulation
+                ).order_by('-date_of_holding').first() # Get the most recent one
+                if last_acc_hit:
+                    last_acc_hit_time = last_acc_hit.date_of_holding
+
+            if target_obj:
+                last_target_hit = Transaction.objects.filter(
+                    item=item_obj,
+                    trans_type__in=[Transaction.SELL, Transaction.INSTANT_SELL],
+                    price__gte=target_obj.target_sell_price # Price greater than or equal to target
+                ).order_by('-date_of_holding').first() # Get the most recent one
+                if last_target_hit:
+                    last_target_hit_time = last_target_hit.date_of_holding
+            # **** END Price Hit Query ****
+
+            # *** Get Transaction History based on filter ***
+            base_history_qs = Transaction.objects.filter(
+                item=item_obj
+            ).exclude( # Exclude placing orders from main history
                 trans_type__in=[Transaction.PLACING_BUY, Transaction.PLACING_SELL]
-            ).order_by('-date_of_holding', '-id')
+            )
 
-            # Calculate stats based on user's non-placing transactions for this item
-            sells = item_transactions_qs.filter(trans_type='Sell')
-            total_sold = sells.aggregate(sold_sum=Sum('quantity'))['sold_sum'] or 0
-            buys_qty = item_transactions_qs.filter(trans_type='Buy').aggregate(buy_sum=Sum('quantity'))['buy_sum'] or 0
-            # Include instant buys/sells in remaining qty calculation if appropriate
-            # Assuming Instant Buy increases holdings, Instant Sell decreases
-            instant_buys_qty = item_transactions_qs.filter(trans_type=Transaction.INSTANT_BUY).aggregate(buy_sum=Sum('quantity'))['buy_sum'] or 0
-            instant_sells_qty = item_transactions_qs.filter(trans_type=Transaction.INSTANT_SELL).aggregate(sell_sum=Sum('quantity'))['sell_sum'] or 0
+            if history_filter == 'my':
+                item_transactions_qs = base_history_qs.filter(user=request.user)
+                history_title = f"Your Transaction History for {item_obj.name}"
+            else: # history_filter == 'all'
+                item_transactions_qs = base_history_qs # No user filter
+                history_title = f"All User History for {item_obj.name}"
 
-            remaining_qty = (buys_qty + instant_buys_qty) - (total_sold + instant_sells_qty)
+            item_transactions_qs = item_transactions_qs.order_by('-date_of_holding', '-id')
 
-            if total_sold > 0 or instant_sells_qty > 0: # Consider both sell types for avg price
-                 all_sells_qs = Transaction.objects.filter(
-                     item=item_obj, user=request.user,
-                     trans_type__in=[Transaction.SELL, Transaction.INSTANT_SELL]
-                 )
-                 # Calculate weighted average sell price if needed, or simple average
-                 # For simple average:
-                 avg_sold_price = all_sells_qs.aggregate(avg_price=Avg('price'))['avg_price'] or 0
+            # *** Calculate Stats ***
+            # Note: Stats like 'remaining_qty', 'item_profit' are currently calculated
+            # ONLY based on the logged-in user's history (item_transactions_qs before filtering logic was split).
+            # Decide if these stats should reflect "All User History" when that filter is active.
+            # For now, let's keep calculating based on the logged-in user's data for simplicity.
+            user_history_for_stats = base_history_qs.filter(user=request.user) # Query user's data specifically for stats
+            sells = user_history_for_stats.filter(trans_type=Transaction.SELL)
+            instant_sells = user_history_for_stats.filter(trans_type=Transaction.INSTANT_SELL)
+            total_sold_qty = (sells.aggregate(sold_sum=Sum('quantity'))['sold_sum'] or 0) + \
+                             (instant_sells.aggregate(sold_sum=Sum('quantity'))['sold_sum'] or 0)
+            buys_qty = user_history_for_stats.filter(trans_type=Transaction.BUY).aggregate(buy_sum=Sum('quantity'))['buy_sum'] or 0
+            instant_buys_qty = user_history_for_stats.filter(trans_type=Transaction.INSTANT_BUY).aggregate(buy_sum=Sum('quantity'))['buy_sum'] or 0
+            remaining_qty = (buys_qty + instant_buys_qty) - total_sold_qty
+            all_sells_qs = user_history_for_stats.filter(trans_type__in=[Transaction.SELL, Transaction.INSTANT_SELL])
+            avg_sold_price = all_sells_qs.aggregate(avg_price=Avg('price'))['avg_price'] if all_sells_qs.exists() else 0
+            item_profit = user_history_for_stats.aggregate(item_profit_sum=Sum('realised_profit'))['item_profit_sum'] or 0
+            # *** End Stat Calculation ***
 
-            item_profit = item_transactions_qs.aggregate(item_profit_sum=Sum('realised_profit'))['item_profit_sum'] or 0
 
-            # Paginate User's Transactions
+            # Paginate Transaction History (using the filtered qs)
             user_items_per_page = 25
             user_paginator = Paginator(item_transactions_qs, user_items_per_page)
-            user_page_number = request.GET.get('user_page') # Use different param name
+            user_page_number = request.GET.get('user_page')
             user_page_obj = user_paginator.get_page(user_page_number)
 
         else:
             messages.warning(request, f"No item or alias found matching '{search_query}'.")
+            history_title = "Transaction History" # Default title if no item
 
-    # --- Fetch Placing Orders (All Users, potentially filtered by item) ---
-    placing_orders_qs = Transaction.objects.filter(
+    else: # No search query
+        history_title = "Your Recent Transaction History" # Or "All Recent..."? Defaulting to user's.
+        # Optionally fetch recent transactions for the user even without search
+        if history_filter == 'my':
+             item_transactions_qs = Transaction.objects.filter(user=request.user).exclude(
+                trans_type__in=[Transaction.PLACING_BUY, Transaction.PLACING_SELL]
+             ).order_by('-date_of_holding', '-id')[:user_items_per_page] # Show first page directly
+             user_paginator = Paginator(item_transactions_qs, user_items_per_page) # Still needed for page obj
+             user_page_obj = user_paginator.get_page(1) # Get page 1 object
+        # Add logic here if you want to show "All User" recent history by default when no search
+
+
+    # --- Fetch Placing Orders based on filter ---
+    base_placing_qs = Transaction.objects.filter(
         trans_type__in=[Transaction.PLACING_BUY, Transaction.PLACING_SELL]
-    ).select_related('item', 'user').order_by('-date_of_holding', '-id')
-
-    # If an item was successfully searched, filter placing orders for that item too
+    )
+    # Filter by item if searched
     if item_obj:
-        placing_orders_qs = placing_orders_qs.filter(item=item_obj)
-        placing_orders_title = f"Placing Orders for {item_obj.name}"
-    else:
-         placing_orders_title = "All Current Placing Orders" # Default title
+        base_placing_qs = base_placing_qs.filter(item=item_obj)
+
+    # Apply user filter
+    if placing_filter == 'my':
+        placing_orders_qs = base_placing_qs.filter(user=request.user)
+        placing_orders_title = f"My Placing Orders"
+        if item_obj: placing_orders_title += f" for {item_obj.name}"
+    else: # placing_filter == 'all'
+        placing_orders_qs = base_placing_qs # No user filter
+        placing_orders_title = f"All Placing Orders"
+        if item_obj: placing_orders_title += f" for {item_obj.name}"
+
+    placing_orders_qs = placing_orders_qs.select_related('item', 'user').order_by('-date_of_holding', '-id')
 
 
     # Paginate Placing Orders
-    placing_orders_per_page = 15 # Different number per page maybe
+    placing_orders_per_page = 15
     placing_orders_paginator = Paginator(placing_orders_qs, placing_orders_per_page)
-    placing_orders_page_number = request.GET.get('placing_page') # Different param name
+    placing_orders_page_number = request.GET.get('placing_page')
     placing_orders_page_obj = placing_orders_paginator.get_page(placing_orders_page_number)
 
 
     # --- Prepare Context ---
     context = {
-        'add_transaction_form': add_transaction_form,
-        'placing_order_form': placing_order_form,
-        'edit_form': edit_form,
-        'active_form_name': active_form_name, # To know which form area to show initially
-
+        # ... forms, item info, stats ...
+        'placing_filter': placing_filter,          # Pass filter states
+        'history_filter': history_filter,          # Pass filter states
+        'history_title': history_title,            # Pass dynamic title
+        'placing_orders_title': placing_orders_title, # Pass dynamic title
+        'item_transactions': user_page_obj,
+        'user_page_obj': user_page_obj,
+        'placing_orders': placing_orders_page_obj,
+        'placing_orders_page_obj': placing_orders_page_obj,
         'search_query': search_query,
+        'timeframe': timeframe,
+        'ADMIN_USERNAME': ADMIN_USERNAME,
         'item': item_obj,
         'alias': item_alias,
         'accumulation': accumulation_obj,
         'target_sell': target_obj,
-
-        # User's Transaction History for the item (Paginated)
-        'item_transactions': user_page_obj, # Use the paginated object
-        'user_page_obj': user_page_obj, # Pass explicitly for pagination controls
-
-        # Item Stats (based on user's history)
-        'total_sold': total_sold,
+        'total_sold': total_sold_qty,
         'remaining_quantity': remaining_qty,
         'average_sold_price': avg_sold_price,
         'item_profit': item_profit,
         'item_image_url': item_image_url,
         'global_realised_profit': global_realised_profit,
-        'timeframe': timeframe,
+        'last_acc_hit_time': last_acc_hit_time,
+        'last_target_hit_time': last_target_hit_time,
+        'active_form_name': active_form_name,
+        'edit_form': edit_form,
+        'add_transaction_form': add_transaction_form,
+        'placing_order_form': placing_order_form,
 
-        # Placing Orders (Paginated) - All users, maybe filtered by item
-        'placing_orders': placing_orders_page_obj, # Use the paginated object
-        'placing_orders_page_obj': placing_orders_page_obj, # Pass explicitly for pagination controls
-        'placing_orders_title': placing_orders_title,
     }
+
+    # ---- TEMPORARY DEBUG PRINTING ----
+    print(f"DEBUG: Current Django Time (UTC): {timezone.now()}")
+    # Fetch the absolute latest transaction to check its timestamp
+    latest_trans = Transaction.objects.order_by('-id').first()
+    if latest_trans:
+        print(f"DEBUG: Latest Tx Timestamp (from DB): {latest_trans.date_of_holding}")
+        print(f"DEBUG: Latest Tx Timezone Info: {latest_trans.date_of_holding.tzinfo}")
+    else:
+        print("DEBUG: No transactions found in DB to check timestamp.")
+    # ---- END DEBUG PRINTING ----
 
     return render(request, 'trades/index.html', context)
 
@@ -683,7 +804,40 @@ def wealth_chart_all_years(request):
 
 @login_required
 def account_page(request):
-    return render(request, 'trades/account.html')
+    # Use get_or_create to handle cases where profile might be missing
+    # (though the signal should normally prevent this after user save)
+    profile, created = UserProfile.objects.get_or_create(user=request.user)
+    if created:
+         print(f"Profile created on-the-fly for {request.user.username} in account view.") # Log if this happens
+
+    if request.method == 'POST':
+        form = UserProfileForm(request.POST, instance=profile)
+        if form.is_valid():
+            new_timezone = form.cleaned_data['time_zone']
+            try:
+                # Validate the timezone exists before saving
+                pytz.timezone(new_timezone)
+                form.save()
+                messages.success(request, 'Timezone updated successfully!')
+                # Activate the new timezone for the remainder of this request/response
+                # The middleware will handle subsequent requests.
+                timezone.activate(new_timezone)
+            except pytz.exceptions.UnknownTimeZoneError:
+                 messages.error(request, f"Invalid timezone '{new_timezone}' selected.")
+            # Redirect back to account page even if error, form will repopulate
+            return redirect('trades:account_page')
+        else:
+             messages.error(request, "Please correct the errors below.")
+    else:
+        # Populate form with current profile settings
+        form = UserProfileForm(instance=profile)
+
+    context = {
+        'profile_form': form, # Use a distinct name like 'profile_form'
+        # Get the timezone currently active for this request (set by middleware)
+        'current_active_timezone': timezone.get_current_timezone_name()
+    }
+    return render(request, 'trades/account.html', context)
 
 
 def password_reset_request(request):
@@ -798,14 +952,22 @@ def logout_view(request):
     return redirect('trades:login_view')
 
 
-@login_required # Make sure user is passed if needed
+# ============================
+# calculate_fifo_for_user - Ensure it exists and is correct
+# ============================
 def calculate_fifo_for_user(user):
+    # Ensure user object is valid
+    # 'User' below now refers to the class obtained by get_user_model()
+    if not user or not isinstance(user, User):
+        print(f"FIFO Calc: Invalid user object received: {user}")
+        return
+
     # --- Add your FIFO logic here ---
     # This function should recalculate realised_profit and cumulative_profit
     # ONLY for the transactions belonging to the passed 'user' argument.
     # It should iterate through the user's transactions chronologically.
     # See the original trades/views.py for the full FIFO logic.
-    with transaction.atomic():
+    with db_transaction.atomic():
         # Reset profits for this user
         Transaction.objects.filter(user=user).update(realised_profit=0.0, cumulative_profit=0.0)
 
@@ -815,8 +977,8 @@ def calculate_fifo_for_user(user):
         # Fetch user's transactions IN ORDER
         user_trans = Transaction.objects.filter(
             user=user
-        ).exclude( # Exclude placing orders from FIFO calc? Decide based on requirements.
-           trans_type__in=[Transaction.PLACING_BUY, Transaction.PLACING_SELL]
+        ).exclude( # Exclude placing orders from FIFO calc
+            trans_type__in=[Transaction.PLACING_BUY, Transaction.PLACING_SELL]
         ).order_by('date_of_holding', 'id') # Use ID as tie-breaker
 
         for trans in user_trans:
@@ -837,32 +999,57 @@ def calculate_fifo_for_user(user):
                 # --- Your FIFO matching logic here ---
                 temp_lots = purchase_lots.get(item_id, [])
                 indices_to_remove = []
+                qty_sold_from_lots = 0 # Track actual quantity matched
+
                 for i, lot in enumerate(temp_lots):
-                    if qty_to_sell <= 0:
-                        break
-                    use_from_lot = min(qty_to_sell, lot['qty'])
+                    if qty_sold_from_lots >= qty_to_sell: # Stop if we've matched enough
+                         break
+                    use_from_lot = min(qty_to_sell - qty_sold_from_lots, lot['qty'])
+                    if use_from_lot <= 0: continue # Skip if lot is empty or no more needed
+
                     cost_basis += use_from_lot * lot['price']
                     lot['qty'] -= use_from_lot
-                    qty_to_sell -= use_from_lot
+                    qty_sold_from_lots += use_from_lot
+
                     if lot['qty'] <= 0.0001: # Use tolerance for float comparison
-                         indices_to_remove.append(i)
+                        indices_to_remove.append(i)
 
                 # Remove used-up lots (iterate backwards to avoid index issues)
                 for index in sorted(indices_to_remove, reverse=True):
-                     purchase_lots[item_id].pop(index)
+                    if index < len(purchase_lots[item_id]): # Bounds check
+                       purchase_lots[item_id].pop(index)
+                    else:
+                        print(f"FIFO Warning: Index {index} out of bounds for item {item_id} lots.")
+
 
                 # --- Calculate profit (assuming 2% fee example) ---
-                # Adjust fee logic as needed
-                sale_value = sell_price * trans.quantity
-                fee = sale_value * 0.02 # Example fee
-                net_sale_value = sale_value - fee
-                profit = net_sale_value - cost_basis
+                # Adjust fee logic as needed - currently NO FEE assumed
+                sale_value = sell_price * trans.quantity # Use original transaction quantity for sale value
+                # fee = sale_value * 0.02 # Example fee
+                # net_sale_value = sale_value - fee
+                net_sale_value = sale_value # No fee
+
+                # Check if enough lots were available
+                if abs(qty_sold_from_lots - trans.quantity) > 0.0001:
+                    # This case means selling more than was bought according to FIFO lots.
+                    # This might indicate data inconsistency or selling short.
+                    # How to handle profit here? Often, cost basis is considered 0 for the unmatched part,
+                    # leading to higher profit, or you might want to flag it as an error.
+                    # For now, let's calculate profit based only on matched lots.
+                    # If cost_basis is 0 because no lots matched, profit = net_sale_value.
+                     profit = net_sale_value - cost_basis
+                     print(f"FIFO Warning: Sold {trans.quantity} but only matched {qty_sold_from_lots} from lots for Tx ID {trans.id}. Calculated profit based on matched lots.")
+                else:
+                     profit = net_sale_value - cost_basis
+
 
                 trans.realised_profit = profit
                 cumulative_sum += profit # Update running total
 
-            # Update cumulative profit regardless of type
+            # Update cumulative profit regardless of type (or only for sells?)
+            # Typically cumulative tracks the total realized profit up to that point.
             trans.cumulative_profit = cumulative_sum
+            # Update only the necessary fields
             trans.save(update_fields=['realised_profit', 'cumulative_profit'])
 
 

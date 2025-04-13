@@ -1,8 +1,35 @@
 # trades/models.py
 
+import pytz # Import pytz
 from django.db import models
 from django.utils import timezone
-from django.contrib.auth.models import User
+# Use AUTH_USER_MODEL for flexibility
+from django.conf import settings # Import settings
+
+# --- Function to generate prioritized timezone choices ---
+def generate_prioritized_timezones():
+    priority_zones = [
+        ('Europe/London', 'UK / London Time (GMT/BST)'), # User-friendly label
+        ('GMT', 'GMT (UTC+0 / No DST)'),
+        ('UTC', 'UTC'),
+    ]
+    priority_zone_names = {tz[0] for tz in priority_zones} # Get the keys ('Europe/London', 'GMT', 'UTC')
+
+    other_common_zones = []
+    for tz_name in pytz.common_timezones:
+        if tz_name not in priority_zone_names:
+            # Use the standard name as the label for others
+            other_common_zones.append((tz_name, tz_name.replace('_', ' '))) # Replace underscore for readability
+
+    # Sort the other zones alphabetically by label (the second element in the tuple)
+    other_common_zones.sort(key=lambda x: x[1])
+
+    # Combine the lists
+    return priority_zones + other_common_zones
+
+# Generate the choices list once when the module loads
+PRIORITIZED_TIMEZONE_CHOICES = generate_prioritized_timezones()
+# --- End Timezone Choices Generation ---
 
 class Alias(models.Model):
     # ... (Alias model definition remains the same) ...
@@ -42,13 +69,13 @@ class Transaction(models.Model):
         (PLACING_SELL, 'Placing Sell'),
     ]
 
-    # Existing fields...
-    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    # Use settings.AUTH_USER_MODEL which refers to your User model ('auth.User' by default)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True)
     item = models.ForeignKey(Item, on_delete=models.CASCADE)
-    trans_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default=BUY) # Increased max_length
+    trans_type = models.CharField(max_length=25, choices=TYPE_CHOICES, default=BUY) # Increased max_length
     price = models.FloatField()
     quantity = models.FloatField()
-    date_of_holding = models.DateField(default=timezone.now)
+    date_of_holding = models.DateTimeField(default=timezone.now)
     realised_profit = models.FloatField(default=0.0)
     cumulative_profit = models.FloatField(default=0.0)
 
@@ -60,7 +87,6 @@ class Transaction(models.Model):
     def __str__(self):
         return f"{self.item.name} {self.trans_type} {self.quantity} @ {self.price}"
 
-# ... (Rest of the models: AccumulationPrice, TargetSellPrice, Membership, WealthData, Watchlist, UserBan remain the same) ...
 
 class AccumulationPrice(models.Model):
     item = models.OneToOneField(Item, on_delete=models.CASCADE)
@@ -129,8 +155,29 @@ class Watchlist(models.Model):
     def __str__(self):
         return f"{self.name} -> {self.buy_or_sell} @ {self.desired_price}"
 
+class UserProfile(models.Model):
+    # Link to the standard User model
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, # Use the setting
+        on_delete=models.CASCADE,
+        related_name='profile' # How we access profile from user (user.profile)
+    )
+    # Store the timezone name (e.g., 'Europe/London')
+    time_zone = models.CharField(
+        max_length=100,
+        choices=PRIORITIZED_TIMEZONE_CHOICES, # <-- Correct variable name
+        default='Europe/London'
+    )
+
+    def __str__(self):
+        return f"{self.user.username}'s Profile (Timezone: {self.time_zone})"
+
 class UserBan(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="ban_info")
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, # Use the setting string
+        on_delete=models.CASCADE,
+        related_name="ban_info"
+    )
     ban_until = models.DateTimeField(null=True, blank=True)
     permanent = models.BooleanField(default=False)
 

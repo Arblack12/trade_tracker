@@ -1,48 +1,49 @@
 # trades/forms.py
-
+import pytz
 from django import forms
 from django.utils import timezone
+from django.shortcuts import get_object_or_404, Http404
+# Remove 'User' from this import:
 from .models import (
     Transaction, Alias, Item, AccumulationPrice, TargetSellPrice,
-    Membership, WealthData, Watchlist
+    Membership, WealthData, Watchlist, UserProfile, PRIORITIZED_TIMEZONE_CHOICES
 )
 
+TIMEZONE_CHOICES = [(tz, tz) for tz in pytz.common_timezones]
+
+ADMIN_USERNAME = "Arblack"
+
+# ... rest of forms.py ...
+
+# ... rest of the forms.py file ...
+
 class TransactionManualItemForm(forms.Form):
-    """
-    Lets the user type an item name or short name to add a new transaction.
-    Transaction types limited to Buy, Sell, Instant Buy, Instant Sell.
-    """
     item_name = forms.CharField(label="Item Name", max_length=200, widget=forms.TextInput(attrs={'placeholder': 'Item Short or Full Name'}))
-    # Keep trans_type, but we'll hide it and set via buttons in template
-    trans_type = forms.ChoiceField(choices=[], widget=forms.HiddenInput) # Initially empty, set in __init__
+    trans_type = forms.ChoiceField(choices=[], widget=forms.HiddenInput)
     price = forms.FloatField(label="Price (millions)")
-    quantity = forms.FloatField(label="Quantity")  # NO LONGER in millions
-    date_of_holding = forms.DateField(initial=timezone.now, widget=forms.DateInput(attrs={'type': 'date'}))
+    quantity = forms.FloatField(label="Quantity")
+    # --- REMOVE date_of_holding field ---
+    # date_of_holding = forms.DateField(initial=timezone.now, widget=forms.DateInput(attrs={'type': 'date'}))
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Filter choices for this form
         self.fields['trans_type'].choices = [
             (Transaction.BUY, 'Buy'),
             (Transaction.SELL, 'Sell'),
             (Transaction.INSTANT_BUY, 'Instant Buy'),
             (Transaction.INSTANT_SELL, 'Instant Sell'),
         ]
-        # Set initial value if needed (e.g., default to Buy)
         self.fields['trans_type'].initial = Transaction.BUY
 
     def save(self, user=None):
-        """
-        Price is interpreted in 'millions', i.e. we store price * 1,000,000 in DB.
-        Quantity is stored as-is (no multiplication).
-        Reads trans_type from the (hidden) form field.
-        """
         name_input = self.cleaned_data['item_name'].strip()
-        trans_type = self.cleaned_data['trans_type'] # Read from the field
-        price = self.cleaned_data['price'] * 1_000_000 # Convert to millions
+        trans_type = self.cleaned_data['trans_type']
+        price = self.cleaned_data['price'] * 1_000_000
         quantity = self.cleaned_data['quantity']
-        date_of_holding = self.cleaned_data['date_of_holding']
+        # --- REMOVE date_of_holding from cleaned_data ---
+        # date_of_holding = self.cleaned_data['date_of_holding']
 
+        # ... (logic to find/create item_obj remains the same) ...
         alias = Alias.objects.filter(short_name__iexact=name_input).first()
         if not alias:
             alias = Alias.objects.filter(full_name__iexact=name_input).first()
@@ -56,51 +57,44 @@ class TransactionManualItemForm(forms.Form):
             if not item_obj:
                 item_obj = Item.objects.create(name=name_input)
 
+
         new_trans = Transaction.objects.create(
             user=user,
             item=item_obj,
-            trans_type=trans_type, # Use the value from the form field
+            trans_type=trans_type,
             price=price,
             quantity=quantity,
-            date_of_holding=date_of_holding
+            # --- DO NOT pass date_of_holding here - let model default work ---
+            # date_of_holding=date_of_holding
         )
         return new_trans
 
 
 class PlacingOrderForm(forms.Form):
-    """
-    Form for placing buy/sell orders.
-    Transaction types limited to Placing Buy, Placing Sell.
-    Inherits structure from TransactionManualItemForm.
-    """
     item_name = forms.CharField(label="Item Name", max_length=200, widget=forms.TextInput(attrs={'placeholder': 'Item Short or Full Name'}))
-    # Keep trans_type, but we'll hide it and set via buttons in template
-    trans_type = forms.ChoiceField(choices=[], widget=forms.HiddenInput) # Initially empty, set in __init__
+    trans_type = forms.ChoiceField(choices=[], widget=forms.HiddenInput)
     price = forms.FloatField(label="Price (millions)")
     quantity = forms.FloatField(label="Quantity")
-    date_of_holding = forms.DateField(initial=timezone.now, widget=forms.DateInput(attrs={'type': 'date'}))
+    # --- REMOVE date_of_holding field ---
+    # date_of_holding = forms.DateField(initial=timezone.now, widget=forms.DateInput(attrs={'type': 'date'}))
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Filter choices for this form
         self.fields['trans_type'].choices = [
             (Transaction.PLACING_BUY, 'Placing Buy'),
             (Transaction.PLACING_SELL, 'Placing Sell'),
         ]
-        # Set initial value if needed (e.g., default to Placing Buy)
         self.fields['trans_type'].initial = Transaction.PLACING_BUY
 
     def save(self, user=None):
-        """
-        Save logic is identical to TransactionManualItemForm,
-        just uses the different trans_type choices set in __init__.
-        """
         name_input = self.cleaned_data['item_name'].strip()
-        trans_type = self.cleaned_data['trans_type'] # Read from the field
-        price = self.cleaned_data['price'] * 1_000_000 # Convert to millions
+        trans_type = self.cleaned_data['trans_type']
+        price = self.cleaned_data['price'] * 1_000_000
         quantity = self.cleaned_data['quantity']
-        date_of_holding = self.cleaned_data['date_of_holding']
+        # --- REMOVE date_of_holding from cleaned_data ---
+        # date_of_holding = self.cleaned_data['date_of_holding']
 
+        # ... (logic to find/create item_obj remains the same) ...
         alias = Alias.objects.filter(short_name__iexact=name_input).first()
         if not alias:
             alias = Alias.objects.filter(full_name__iexact=name_input).first()
@@ -114,56 +108,58 @@ class PlacingOrderForm(forms.Form):
             if not item_obj:
                 item_obj = Item.objects.create(name=name_input)
 
+
         new_trans = Transaction.objects.create(
             user=user,
             item=item_obj,
-            trans_type=trans_type, # Use the value from the form field
+            trans_type=trans_type,
             price=price,
             quantity=quantity,
-            date_of_holding=date_of_holding
+             # --- DO NOT pass date_of_holding here - let model default work ---
+            # date_of_holding=date_of_holding
         )
         return new_trans
 
 
 class TransactionEditForm(forms.Form):
-    """
-    A form for editing an existing Transaction.
-    Price is still in 'millions'; quantity is raw.
-    Uses the original Buy/Sell dropdown for simplicity unless you want buttons here too.
-    """
     transaction_id = forms.IntegerField(widget=forms.HiddenInput())
     item_name = forms.CharField(label="Item Name", max_length=200)
-    # Keep dropdown for editing for now, includes ALL types potentially
     trans_type = forms.ChoiceField(choices=Transaction.TYPE_CHOICES)
     price = forms.FloatField(label="Price (millions)")
     quantity = forms.FloatField(label="Quantity")
-    date_of_holding = forms.DateField(widget=forms.DateInput(attrs={'type': 'date'}))
+    # --- REMOVE date_of_holding field FROM EDIT FORM (unless editing time is required) ---
+    # date_of_holding = forms.DateField(widget=forms.DateInput(attrs={'type': 'date'}))
 
     def load_initial(self, transaction):
-        """
-        Divide DB-stored price by 1,000,000 to show 'millions'.
-        Quantity is shown as-is.
-        """
         self.fields['transaction_id'].initial = transaction.id
         self.fields['item_name'].initial = transaction.item.name
         self.fields['trans_type'].initial = transaction.trans_type
-        self.fields['price'].initial = transaction.price / 1_000_000.0
+        db_price = float(transaction.price or 0)
+        self.fields['price'].initial = db_price / 1_000_000.0
         self.fields['quantity'].initial = transaction.quantity
-        self.fields['date_of_holding'].initial = transaction.date_of_holding
+        # --- REMOVE loading initial date_of_holding ---
+        # self.fields['date_of_holding'].initial = transaction.date_of_holding
 
     def update_transaction(self, user=None):
-        from .models import Transaction, Alias, Item
-
         trans_id = self.cleaned_data['transaction_id']
-        # Make sure the transaction belongs to the user editing it
-        transaction = get_object_or_404(Transaction, id=trans_id, user=user)
+        try:
+            if user and user.username == ADMIN_USERNAME:
+                 transaction = get_object_or_404(Transaction, id=trans_id)
+            elif user:
+                 transaction = get_object_or_404(Transaction, id=trans_id, user=user)
+            else:
+                 raise Http404("Authentication required.")
+        except Http404:
+             raise Http404("Transaction not found or permission denied.")
 
         name_input = self.cleaned_data['item_name'].strip()
         trans_type = self.cleaned_data['trans_type']
-        price = self.cleaned_data['price'] * 1_000_000  # convert from millions
+        price = self.cleaned_data['price'] * 1_000_000
         quantity = self.cleaned_data['quantity']
-        date_of_holding = self.cleaned_data['date_of_holding']
+        # --- REMOVE date_of_holding from cleaned_data ---
+        # date_of_holding = self.cleaned_data['date_of_holding']
 
+        # ... (logic to find/create item_obj remains the same) ...
         alias = Alias.objects.filter(short_name__iexact=name_input).first()
         if not alias:
             alias = Alias.objects.filter(full_name__iexact=name_input).first()
@@ -177,15 +173,13 @@ class TransactionEditForm(forms.Form):
             if not item_obj:
                 item_obj = Item.objects.create(name=name_input)
 
+
         transaction.item = item_obj
         transaction.trans_type = trans_type
         transaction.price = price
         transaction.quantity = quantity
-        transaction.date_of_holding = date_of_holding
-
-        # Optionally ensure user matches if you want stricter ownership (already filtered above)
-        # if user is not None:
-        #     transaction.user = user
+        # --- DO NOT update date_of_holding during edit ---
+        # transaction.date_of_holding = date_of_holding
 
         transaction.save()
         return transaction
@@ -246,4 +240,17 @@ class WatchlistForm(forms.ModelForm):
         fields = [
             'name','desired_price','buy_or_sell','account_name',
             'wished_quantity','total_value','current_holding'
+
         ]
+
+class UserProfileForm(forms.ModelForm):
+    time_zone = forms.ChoiceField(
+        # --- Use the imported choices list ---
+        choices=PRIORITIZED_TIMEZONE_CHOICES,
+        required=True,
+        label="Preferred Timezone"
+    )
+
+    class Meta:
+        model = UserProfile
+        fields = ['time_zone']
