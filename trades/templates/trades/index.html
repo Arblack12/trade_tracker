@@ -395,11 +395,18 @@
 
                      {# Last User Tx #}
                     <div style="margin-bottom: 10px;">
-                         <span style="display: block; font-weight: bold; color: #ccc;">Last User Tx:</span>
+                         <span style="display: block; font-weight: bold; color: #ccc;">Latest Activity:</span>
                          <span style="display: block;">
-                            {% with first_trans=item_transactions.object_list.0 %}
-                                {% if first_trans %}{{ first_trans.date_of_holding|naturaltime }}{% else %}-{% endif %}
-                            {% endwith %}
+                            {# Use the new, correctly filtered variable #}
+                            {% if overall_last_tx_for_item %}
+                                {{ overall_last_tx_for_item.date_of_holding|naturaltime }}
+                                {# Optional: Show which user made the last transaction #}
+                                {% if overall_last_tx_for_item.user %}
+                                    (by {{ overall_last_tx_for_item.user.username }})
+                                {% endif %}
+                            {% else %}
+                                - {# Display dash if NO transactions exist at all for this item #}
+                            {% endif %}
                          </span>
                     </div>
 

@@ -49,4 +49,5 @@ urlpatterns = [
     path('logout/', views.logout_view, name='logout_view'),
     path('recent-trades/', views.recent_trades, name='recent_trades'),
     path('manage/users/', views.user_management, name='user_management'),
+    path('login/', views.login_view, name='login_view'),
 ]

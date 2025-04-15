@@ -261,6 +261,7 @@ def index(request):
     user_page_obj = None
     placing_orders_qs = Transaction.objects.none() # Start with empty queryset
     placing_orders_page_obj = None
+    overall_last_tx_for_item = None
 
     # **** INITIALIZE VARIABLES WITH DEFAULTS ****
     user_items_per_page = 10   # <--- ADD INITIALIZATION HERE
@@ -316,6 +317,15 @@ def index(request):
                 ).order_by('-date_of_holding').first() # Get the most recent one
                 if last_target_hit:
                     last_target_hit_time = last_target_hit.date_of_holding
+
+            # Fetch the absolute latest transaction for THIS item by ANY user
+            overall_last_tx_for_item = Transaction.objects.filter(
+                # user=request.user, # <<< REMOVE THIS FILTER >>>
+                item=item_obj       # Filter only by the item
+            ).exclude(
+                # Exclude placing orders if they shouldn't count
+                trans_type__in=[Transaction.PLACING_BUY, Transaction.PLACING_SELL]
+            ).order_by('-date_of_holding', '-id').first() # Get the single latest one overall
             # **** END Price Hit Query ****
 
             # *** Get Transaction History based on filter ***
@@ -372,6 +382,7 @@ def index(request):
              ).order_by('-date_of_holding', '-id')[:user_items_per_page] # Show first page directly
              user_paginator = Paginator(item_transactions_qs, user_items_per_page) # Still needed for page obj
              user_page_obj = user_paginator.get_page(1) # Get page 1 object
+        pass # No item, so last_user_tx_for_item remains None
         # Add logic here if you want to show "All User" recent history by default when no search
 
 
@@ -433,6 +444,7 @@ def index(request):
         'edit_form': edit_form,
         'add_transaction_form': add_transaction_form,
         'placing_order_form': placing_order_form,
+        'overall_last_tx_for_item': overall_last_tx_for_item,
 
     }
 
