@@ -43,6 +43,21 @@ def multiply(value, arg):
          # Handle cases where conversion fails
          return None
 
+# +++ ADDED FILTER +++
+@register.filter(name='subtract')
+def subtract(value, arg):
+    """
+    Subtracts the arg from the value. Returns None on error.
+    Uses Decimal for precision.
+    """
+    try:
+        value = Decimal(str(value)) # Convert to string first for robustness
+        arg = Decimal(str(arg))     # Convert to string first for robustness
+        return value - arg
+    except (TypeError, ValueError, InvalidOperation):
+        return None
+# +++ END ADDED FILTER +++
+
 # Optional: A filter to handle None values before other formatting
 @register.filter(name='default_if_none')
 def default_if_none(value, default_value=""):

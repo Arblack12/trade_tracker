@@ -276,6 +276,7 @@ def index(request):
 
     # This calculation can stay here as it doesn't depend on search_query
     global_realised_profit = Transaction.objects.filter(user=request.user).aggregate(total=Max('cumulative_profit'))['total'] or 0
+    potential_profit = None # Initialize variable
 
     # --- Find Item based on search query ---
     if search_query:

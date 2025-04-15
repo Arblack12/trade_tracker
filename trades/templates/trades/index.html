@@ -1,7 +1,7 @@
 {% comment %} trades/templates/trades/index.html {% endcomment %}
 {% load static %}
 {% load humanize %}      {# for intcomma #}
-{% load extra_filters %} {# Load if you use divide/multiply, otherwise optional #}
+{% load extra_filters %} {# Load the filters including divide, multiply, subtract #}
 {% load query_transform %}
 
 <!DOCTYPE html>
@@ -87,8 +87,8 @@
             flex-basis: 100%; /* Default to full width */
         }
         @media (min-width: 1200px) { /* Adjust breakpoint as needed */
-            .left-panel { flex: 0 0 30%; } /* Fixed width for left */
-            .right-panel { flex: 1; } /* Right takes remaining space */
+             .left-panel { flex: 0 0 30%; } /* Fixed width for left */
+             .right-panel { flex: 1; } /* Right takes remaining space */
         }
         @media (min-width: 992px) and (max-width: 1199px) { /* Medium screens */
              .left-panel { flex: 0 0 40%; }
@@ -101,18 +101,32 @@
             display: block; margin-left: auto; margin-right:auto; border-radius: 4px;
         }
         .field-label {
-            font-weight: bold; width: 160px; /* Increased width */
-            display: inline-block; margin-right: 5px;
+            font-weight: bold; width: 170px; /* Increased width slightly more */
+            display: inline-block; margin-right: 5px; vertical-align: top; /* Align top for multi-line values */
         }
-        .field-value { display: inline; }
-        .info-row p { margin-bottom: 0.6rem; } /* Slightly more space */
+        .field-value { display: inline-block; vertical-align: top; } /* Align top */
+        .info-row p { margin-bottom: 0.6rem; line-height: 1.4; } /* Slightly more space and line height */
         .accum-target-form {
             display: flex; align-items: center; gap: 8px;
             margin-bottom: 10px; flex-wrap: wrap;
         }
-        .accum-target-form label { width: 160px; flex-shrink: 0; } /* Match field-label */
+        .accum-target-form label { width: 170px; flex-shrink: 0; } /* Match field-label */
         .accum-target-form input[type="number"] { width: 100px; }
         .accum-target-form button { padding: 6px 12px; font-size: 0.9em; }
+
+        /* Style for the "Last Hit" timestamp */
+        .last-hit-time {
+            font-size: 0.8em;
+            color: #aaa;
+            margin-left: 8px; /* Space between price and timestamp */
+        }
+
+        /* Style for potential profit */
+        .potential-profit-value {
+            font-weight: bold;
+        }
+        .profit-positive { color: #4CAF50; } /* Green */
+        .profit-negative { color: #f44336; } /* Red */
 
         /* --- Right Panel (Forms) --- */
         .form-switcher { margin-bottom: 15px; display: flex; gap: 10px; }
@@ -182,34 +196,35 @@
         /* --- Charts --- */
         .chart-container img {
             max-width:100%; height: auto; border: 1px solid #444; margin-bottom: 20px; border-radius: 4px;
-        .filter-buttons { margin-bottom: 10px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;}
-        .filter-buttons h2 { margin: 0; margin-right: 10px; /* Adjust spacing */ font-size: 1.4em; border: none; padding: 0;} /* Style heading */
-        .filter-buttons a button { /* Style button links */
+         } /* Closing brace was missing */
+         .filter-buttons { margin-bottom: 10px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;}
+         .filter-buttons h2 { margin: 0; margin-right: 10px; /* Adjust spacing */ font-size: 1.4em; border: none; padding: 0;} /* Style heading */
+         .filter-buttons a button { /* Style button links */
              padding: 5px 10px;
              font-size: 0.9em;
              background-color: #444; /* Default button color */
              border: 1px solid #666;
              color: #eee;
              cursor: pointer;
-        }
-        .filter-buttons a button.active { /* Style for active button */
-            background-color: #008c5f; /* Active color */
-            border-color: #00a874;
-            font-weight: bold;
-        }
-         .filter-buttons a button:hover {
-             background-color: #555; /* Hover for inactive */
          }
-          .filter-buttons a button.active:hover {
-             background-color: #00a874; /* Hover for active */
+         .filter-buttons a button.active { /* Style for active button */
+             background-color: #008c5f; /* Active color */
+             border-color: #00a874;
+             font-weight: bold;
          }
+          .filter-buttons a button:hover {
+              background-color: #555; /* Hover for inactive */
+          }
+           .filter-buttons a button.active:hover {
+              background-color: #00a874; /* Hover for active */
+          }
 
-         /* Style for transaction date/time */
-         td.transaction-time {
-             white-space: nowrap; /* Prevent wrapping */
-             font-size: 0.9em; /* Slightly smaller */
-             color: #bbb; /* Dimmer color */
-         }
+          /* Style for transaction date/time */
+          td.transaction-time {
+              white-space: nowrap; /* Prevent wrapping */
+              font-size: 0.9em; /* Slightly smaller */
+              color: #bbb; /* Dimmer color */
+          }
 
     </style>
 </head>
@@ -218,42 +233,42 @@
 
     {# --- Display Django Messages (Using Bootstrap Alert Structure) --- #}
     <div class="messages-container">
-      {% if messages %}
-          {% for message in messages %}
-              {# --- Map Django messa   ge tags to Bootstrap alert classes --- #}
-              {% with bootstrap_tag=message.tags|lower %}
-                  {% if 'error' in bootstrap_tag or 'danger' in bootstrap_tag %}
-                      {% with alert_class='alert-danger' %}
-                          <div class="alert {{ alert_class }} alert-dismissible fade show" role="alert">
-                              {{ message }}
-                              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                          </div>
-                      {% endwith %}
-                  {% elif 'success' in bootstrap_tag %}
-                      {% with alert_class='alert-success' %}
-                           <div class="alert {{ alert_class }} alert-dismissible fade show" role="alert">
-                              {{ message }}
-                              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                          </div>
-                      {% endwith %}
-                  {% elif 'warning' in bootstrap_tag %}
-                       {% with alert_class='alert-warning' %}
-                           <div class="alert {{ alert_class }} alert-dismissible fade show" role="alert">
-                              {{ message }}
-                              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                          </div>
-                      {% endwith %}
-                  {% else %} {# Default to info #}
-                       {% with alert_class='alert-info' %}
-                           <div class="alert {{ alert_class }} alert-dismissible fade show" role="alert">
-                              {{ message }}
-                              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                          </div>
-                      {% endwith %}
-                  {% endif %}
-              {% endwith %} {# bootstrap_tag #}
-          {% endfor %}
-      {% endif %} {# if messages #}
+        {% if messages %}
+            {% for message in messages %}
+                {# --- Map Django messa   ge tags to Bootstrap alert classes --- #}
+                {% with bootstrap_tag=message.tags|lower %}
+                    {% if 'error' in bootstrap_tag or 'danger' in bootstrap_tag %}
+                        {% with alert_class='alert-danger' %}
+                            <div class="alert {{ alert_class }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        {% endwith %}
+                    {% elif 'success' in bootstrap_tag %}
+                        {% with alert_class='alert-success' %}
+                             <div class="alert {{ alert_class }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        {% endwith %}
+                    {% elif 'warning' in bootstrap_tag %}
+                         {% with alert_class='alert-warning' %}
+                             <div class="alert {{ alert_class }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        {% endwith %}
+                    {% else %} {# Default to info #}
+                         {% with alert_class='alert-info' %}
+                             <div class="alert {{ alert_class }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        {% endwith %}
+                    {% endif %}
+                {% endwith %} {# bootstrap_tag #}
+            {% endfor %}
+        {% endif %} {# if messages #}
     </div>
     {# --- End Django Messages --- #}
 
@@ -323,12 +338,10 @@
 
         {# --- LEFT PANEL --- #}
         <div class="left-panel"> {# <--- START left-panel --> #}
-            {# trades/templates/trades/index.html #}
-
-            {# ... inside <div class="left-panel"> ... #}
             {% if item %}
                 {# === All the content for the left panel when an item exists === #}
-                {# Item image and title #}
+
+                {# Item image and title (Remains centered) #}
                 <div style="text-align:center;">
                     {% if item_image_url %}
                     <img src="{{ item_image_url }}" alt="{{ item.name }} Image" class="item-image">
@@ -338,71 +351,103 @@
                     <h2>{{ item.name }}</h2>
                 </div>
 
-                {# Display general item stats #}
-                <div class="info-row">
-                    <p><span class="field-label">Accumulation Price:</span> <span class="field-value">{% if accumulation %} {{ accumulation.accumulation_price|floatformat:0|intcomma }} {% else %} 0 {% endif %}</span></p>
-                    <p><span class="field-label">Target Sell Price:</span> <span class="field-value">{% if target_sell %} {{ target_sell.target_sell_price|floatformat:0|intcomma }} {% else %} 0 {% endif %}</span></p>
-                    <p><span class="field-label">Average Sell Price:</span> <span class="field-value">{{ average_sold_price|floatformat:0|intcomma }}</span></p>
-                    <p><span class="field-label">Total Sold:</span> <span class="field-value">{{ total_sold|floatformat:0|intcomma }}</span></p>
-                    <p><span class="field-label">Quantity Held:</span> <span class="field-value">{{ remaining_quantity|floatformat:0|intcomma }}</span></p>
-                    <p><span class="field-label">Item Realised Profit:</span> <span class="field-value">{{ item_profit|floatformat:0|intcomma }}</span></p>
-                    <p><span class="field-label">Global Realised Profit:</span> <span class="field-value">{{ global_realised_profit|floatformat:0|intcomma }}</span></p>
-                    <p><span class="field-label">Last User Tx:</span>
-                        <span class="field-value">
-                        {% with first_trans=item_transactions.object_list.0 %}
-                            {% if first_trans %}{{ first_trans.date_of_holding|naturaltime }}{% else %}-{% endif %}
-                        {% endwith %}
-                        </span>
-                    </p>
-                </div> {# End info-row #}
+                {# --- NEW Centered Accumulation/Target/Profit/LastTx Section --- #}
+                <div class="price-target-section" style="text-align: center; margin-top: 15px; padding-top: 10px; border-top: 1px solid #444;">
 
-                {# Accumulation / Target Price Forms - **** ADMIN ONLY **** #}
+                    {# Accumulation Price #}
+                    <div style="margin-bottom: 10px;">
+                        <span style="display: block; font-weight: bold; color: #ccc;">Accumulation Price:</span>
+                        <span style="display: block;">
+                            {% if accumulation %} {{ accumulation.accumulation_price|floatformat:0|intcomma }} {% else %} 0 {% endif %}
+                            {% if last_acc_hit_time %}
+                                <span class="last-hit-time" style="display: inline; margin-left: 5px;">(Last hit: {{ last_acc_hit_time|naturaltime }})</span>
+                            {% endif %}
+                        </span>
+                    </div>
+
+                    {# Target Sell Price #}
+                    <div style="margin-bottom: 10px;">
+                         <span style="display: block; font-weight: bold; color: #ccc;">Target Sell Price:</span>
+                         <span style="display: block;">
+                             {% if target_sell %} {{ target_sell.target_sell_price|floatformat:0|intcomma }} {% else %} 0 {% endif %}
+                              {% if last_target_hit_time %}
+                                 <span class="last-hit-time" style="display: inline; margin-left: 5px;">(Last hit: {{ last_target_hit_time|naturaltime }})</span>
+                              {% endif %}
+                         </span>
+                    </div>
+
+                    {# Potential Profit #}
+                    {% if accumulation and target_sell and accumulation.accumulation_price > 0 and target_sell.target_sell_price > 0 %}
+                        {% with sale_price=target_sell.target_sell_price acc_price=accumulation.accumulation_price %}
+                            {% with sale_after_tax=sale_price|multiply:0.98 %} {# Apply 2% tax (multiply by 0.98) #}
+                                {% with net_profit=sale_after_tax|subtract:acc_price %}
+                                    <div style="margin-bottom: 10px;">
+                                        <span style="display: block; font-weight: bold; color: #ccc;">Potential Profit Each Item:</span>
+                                        <span style="display: block;" class="potential-profit-value {% if net_profit >= 0 %}profit-positive{% else %}profit-negative{% endif %}">
+                                            {{ net_profit|floatformat:0|intcomma }}
+                                            <span style="font-size: 0.8em; color: #aaa;">(after 2% tax)</span>
+                                        </span>
+                                    </div>
+                                {% endwith %} {# net_profit #}
+                            {% endwith %} {# sale_after_tax #}
+                        {% endwith %} {# sale_price, acc_price #}
+                    {% endif %}
+
+                     {# Last User Tx #}
+                    <div style="margin-bottom: 10px;">
+                         <span style="display: block; font-weight: bold; color: #ccc;">Last User Tx:</span>
+                         <span style="display: block;">
+                            {% with first_trans=item_transactions.object_list.0 %}
+                                {% if first_trans %}{{ first_trans.date_of_holding|naturaltime }}{% else %}-{% endif %}
+                            {% endwith %}
+                         </span>
+                    </div>
+
+                </div>
+                {# --- END Centered Section --- #}
+
+
+                {# --- NEW "Your Stats" Section --- #}
+                <div class="user-stats-section" style="margin-top: 25px; padding-top: 15px; border-top: 1px solid #444;">
+                    <h3 style="text-align: center; margin-bottom: 15px; color: #ddd;">Your Stats</h3>
+                    {# Keep original label-value inline display for these #}
+                    <div class="info-row"> {# Re-using info-row class might work, or remove if styles conflict #}
+                        <p><span class="field-label">Average Sell Price:</span> <span class="field-value">{{ average_sold_price|floatformat:0|intcomma }}</span></p>
+                        <p><span class="field-label">Total Sold:</span> <span class="field-value">{{ total_sold|floatformat:0|intcomma }}</span></p>
+                        <p><span class="field-label">Current Quantity Holdings:</span> <span class="field-value">{{ remaining_quantity|floatformat:0|intcomma }}</span></p>
+                        <p><span class="field-label">Item Realised Profit:</span> <span class="field-value">{{ item_profit|floatformat:0|intcomma }}</span></p>
+                        <p><span class="field-label">Global Realised Profit:</span> <span class="field-value">{{ global_realised_profit|floatformat:0|intcomma }}</span></p>
+                    </div>
+                </div>
+                 {# --- END "Your Stats" Section --- #}
+
+
+                {# Accumulation / Target Price Forms - **** ADMIN ONLY **** (Keep below stats) #}
                 {% if user.username == ADMIN_USERNAME %}
-                    <div class="admin-only-form">
-                        <hr style="border-color: #444; margin-top: 15px;">
+                    <div class="admin-only-form" style="margin-top: 20px; padding-top:15px; border-top: 1px solid #444;">
+                        <h4 style="text-align: center; color: #ccc; margin-bottom:15px;">Admin Price Update</h4>
                         <form method="post" class="accum-target-form">
-                           {% csrf_token %}
-                           <input type="hidden" name="acc_item_id" value="{{ item.id }}">
-                           <input type="hidden" name="search" value="{{ search_query|default:'' }}">
-                           <label for="acc_price">Accumulation Price (M):</label>
-                           <input type="number" step="any" name="accumulation_price" id="acc_price" value="{% if accumulation %}{{ accumulation.accumulation_price|divide:1000000|default_if_none:''|floatformat:'-3g' }}{% endif %}">
-                           <button type="submit" name="update_accumulation">Update</button>
+                            {% csrf_token %}
+                            <input type="hidden" name="acc_item_id" value="{{ item.id }}">
+                            <input type="hidden" name="search" value="{{ search_query|default:'' }}">
+                            <label for="acc_price">Accumulation Price (M):</label>
+                            <input type="number" step="any" name="accumulation_price" id="acc_price" value="{% if accumulation %}{{ accumulation.accumulation_price|divide:1000000|default_if_none:''|floatformat:'-3g' }}{% endif %}">
+                            <button type="submit" name="update_accumulation">Update</button>
                         </form>
                         <form method="post" class="accum-target-form">
-                           {% csrf_token %}
-                           <input type="hidden" name="ts_item_id" value="{{ item.id }}">
-                           <input type="hidden" name="search" value="{{ search_query|default:'' }}">
-                           <label for="ts_price">Target Sell Price (M):</label>
-                           <input type="number" step="any" name="target_sell_price" id="ts_price" value="{% if target_sell %}{{ target_sell.target_sell_price|divide:1000000|default_if_none:''|floatformat:'-3g' }}{% endif %}">
-                           <button type="submit" name="update_target_sell">Update</button>
+                            {% csrf_token %}
+                            <input type="hidden" name="ts_item_id" value="{{ item.id }}">
+                            <input type="hidden" name="search" value="{{ search_query|default:'' }}">
+                            <label for="ts_price">Target Sell Price (M):</label>
+                            <input type="number" step="any" name="target_sell_price" id="ts_price" value="{% if target_sell %}{{ target_sell.target_sell_price|divide:1000000|default_if_none:''|floatformat:'-3g' }}{% endif %}">
+                            <button type="submit" name="update_target_sell">Update</button>
                         </form>
-                   </div>
+                     </div>
                 {% endif %}
                 {# ---- END ADMIN ONLY PRICE FORMS ---- #}
 
-                {# **** "LAST HIT" INFO **** #}
-                {% if accumulation and accumulation.accumulation_price > 0 or target_sell and target_sell.target_sell_price > 0 %}
-                    <div style="margin-top: 15px; padding-top: 10px; border-top: 1px solid #444;">
-                        {% if accumulation and accumulation.accumulation_price > 0 %}
-                        <p><span class="field-label">Acc. Price Last Hit:</span>
-                            <span class="field-value">
-                                {% if last_acc_hit_time %}{{ last_acc_hit_time|naturaltime }}{% else %}Never (in recorded history){% endif %}
-                            </span>
-                        </p>
-                        {% endif %}
-                        {% if target_sell and target_sell.target_sell_price > 0 %}
-                         <p><span class="field-label">Target Price Last Hit:</span>
-                            <span class="field-value">
-                                 {% if last_target_hit_time %}{{ last_target_hit_time|naturaltime }}{% else %}Never (in recorded history){% endif %}
-                            </span>
-                        </p>
-                        {% endif %}
-                    </div>
-                {% endif %}
-                {# **** END "LAST HIT" INFO **** #}
-
             {% else %} {# Corresponds to {% if item %} #}
-                 {# Placeholder content when no item is found/searched #}
+                 {# Placeholder content when no item is found/searched (Remains the same) #}
                  <div style="text-align:center;">
                      <img src="{% static 'images/rs3_logo.webp' %}" alt="Default Image" class="item-image" style="opacity: 0.5;">
                      <h2>Search Item</h2>
@@ -411,12 +456,11 @@
                  </div>
             {% endif %} {# End of {% if item %} #}
 
-        </div> {# <--- MOVED and CORRECTED closing tag for left-panel --> #}
+        </div> {# <--- End left-panel --> #}
 
-
-        {# --- RIGHT PANEL: forms (Add Transaction / Placing Order / Edit Transaction) --- #}
-        <div class="right-panel"> {# <--- START right-panel (Now correctly follows left-panel) --> #}
-
+        {# --- RIGHT PANEL --- (No changes needed here based on request) #}
+        <div class="right-panel">
+            {# ... Form switcher and form containers ... #}
             {# --- Form Switcher Buttons --- #}
             <div class="form-switcher">
                 <button type="button" id="showAddTransactionBtn" class="form-switch-btn active">Add Transaction</button>
@@ -425,8 +469,7 @@
 
             {# --- Edit Transaction Form Container --- #}
             {% if edit_form %}
-             <div id="editTransactionFormContainer" class="form-container active">
-                {# ... Edit form content goes here ... #}
+            <div id="editTransactionFormContainer" class="form-container active">
                 <div class="transaction-form-section">
                     <h3>Edit Transaction (ID: {{ edit_form.initial.transaction_id }})</h3>
                     <form method="post">
@@ -438,7 +481,6 @@
                         <div><label for="{{ edit_form.trans_type.id_for_label }}">{{ edit_form.trans_type.label }}:</label> {{ edit_form.trans_type }}</div>
                         <div><label for="{{ edit_form.price.id_for_label }}">{{ edit_form.price.label }} (M):</label> {{ edit_form.price }}</div>
                         <div><label for="{{ edit_form.quantity.id_for_label }}">{{ edit_form.quantity.label }}:</label> {{ edit_form.quantity }}</div>
-                        <div><label for="{{ edit_form.date_of_holding.id_for_label }}">{{ edit_form.date_of_holding.label }}:</label> {{ edit_form.date_of_holding }}</div>
                         {% if edit_form.errors %}<div style="color: #ff4d4d; margin-top: 10px;"><strong>Errors:</strong> {{ edit_form.errors }}</div>{% endif %}
                         <div class="submit-section">
                             <button type="submit" name="update_transaction">Update Transaction</button>
@@ -446,12 +488,11 @@
                         </div>
                     </form>
                 </div>
-             </div>
+            </div>
             {% endif %}
 
             {# --- Add Transaction Form Container --- #}
             <div id="addTransactionFormContainer" class="form-container {% if not edit_form and active_form_name == 'add_transaction' %}active{% endif %}">
-                {# ... Add transaction form content goes here ... #}
                  <div class="transaction-form-section">
                     <h3>Add Transaction</h3>
                      <form method="post" id="addTransactionForm">
@@ -461,7 +502,6 @@
                         <div><label for="{{ add_transaction_form.item_name.id_for_label }}">{{ add_transaction_form.item_name.label }}:</label> {{ add_transaction_form.item_name }}</div>
                         <div><label for="{{ add_transaction_form.price.id_for_label }}">{{ add_transaction_form.price.label }} (M):</label> {{ add_transaction_form.price }}</div>
                         <div><label for="{{ add_transaction_form.quantity.id_for_label }}">{{ add_transaction_form.quantity.label }}:</label> {{ add_transaction_form.quantity }}</div>
-                        <div><label for="{{ add_transaction_form.date_of_holding.id_for_label }}">{{ add_transaction_form.date_of_holding.label }}:</label> {{ add_transaction_form.date_of_holding }}</div>
                         <input type="hidden" name="{{ add_transaction_form.trans_type.name }}" id="id_add_trans_type" value="{{ add_transaction_form.trans_type.initial }}">
                         <label>Transaction Type:</label>
                         <div class="trans-type-buttons">
@@ -478,15 +518,14 @@
                             </div>
                         {% endif %}
                          <div class="submit-section">
-                            <button type="submit" name="add_transaction_submit">Add Transaction</button>
-                        </div>
+                             <button type="submit" name="add_transaction_submit">Add Transaction</button>
+                         </div>
                     </form>
                 </div>
             </div>
 
             {# --- Placing Order Form Container --- #}
             <div id="placingOrderFormContainer" class="form-container {% if not edit_form and active_form_name == 'placing_order' %}active{% endif %}">
-                 {# ... Placing order form content goes here ... #}
                   <div class="transaction-form-section">
                     <h3>Placing Order</h3>
                     <form method="post" id="placingOrderForm">
@@ -496,7 +535,6 @@
                         <div><label for="{{ placing_order_form.item_name.id_for_label }}">{{ placing_order_form.item_name.label }}:</label> {{ placing_order_form.item_name }}</div>
                         <div><label for="{{ placing_order_form.price.id_for_label }}">{{ placing_order_form.price.label }} (M):</label> {{ placing_order_form.price }}</div>
                         <div><label for="{{ placing_order_form.quantity.id_for_label }}">{{ placing_order_form.quantity.label }}:</label> {{ placing_order_form.quantity }}</div>
-                        <div><label for="{{ placing_order_form.date_of_holding.id_for_label }}">{{ placing_order_form.date_of_holding.label }}:</label> {{ placing_order_form.date_of_holding }}</div>
                         <input type="hidden" name="{{ placing_order_form.trans_type.name }}" id="id_placing_trans_type" value="{{ placing_order_form.trans_type.initial }}">
                         <label>Order Type:</label>
                         <div class="trans-type-buttons">
@@ -511,14 +549,13 @@
                              </div>
                         {% endif %}
                          <div class="submit-section">
-                            <button type="submit" name="placing_order_submit">Place Order</button>
-                        </div>
+                             <button type="submit" name="placing_order_submit">Place Order</button>
+                         </div>
                     </form>
                 </div>
             </div>
 
         </div> {# <--- End right-panel --> #}
-
     </div> {# <--- End content-row --> #}
 
     {# --- PLACING ORDERS SECTION with Filters --- #}
@@ -527,8 +564,8 @@
          {# Build URLs preserving other parameters #}
         {% url 'trades:index' as base_url %}
         {% with request.GET.urlencode as current_params %}
-             <a href="{{ base_url }}?{% query_transform placing_filter='my' %}"><button ...>My Orders</button></a>
-             <a href="{{ base_url }}?{% query_transform placing_filter='all' %}"><button ...>All Orders</button></a>
+             <a href="{{ base_url }}?{% query_transform placing_filter='my' %}"><button class="{% if placing_filter == 'my' %}active{% endif %}">My Orders</button></a>
+             <a href="{{ base_url }}?{% query_transform placing_filter='all' %}"><button class="{% if placing_filter == 'all' %}active{% endif %}">All Orders</button></a>
         {% endwith %}
     </div>
     <div style="overflow-x: auto;">
@@ -586,13 +623,13 @@
         {% if placing_orders_page_obj.has_other_pages %}
             <span class="step-links">
                 {% if placing_orders_page_obj.has_previous %}
-                    <a href="{{ base_url }}?{% query_transform placing_page=1 %}">&laquo; first</a>  {# FIXED #}
+                    <a href="{{ base_url }}?{% query_transform placing_page=1 %}">&laquo; first</a> {# FIXED #}
                     <a href="{{ base_url }}?{% query_transform placing_page=placing_orders_page_obj.previous_page_number %}">previous</a> {# FIXED #}
                 {% endif %}
                 <span class="current-page"> Page {{ placing_orders_page_obj.number }} of {{ placing_orders_page_obj.paginator.num_pages }} </span>
                 {% if placing_orders_page_obj.has_next %}
-                    <a href="{{ base_url }}?{% query_transform placing_page=placing_orders_page_obj.next_page_number %}">next</a> {# FIXED #}
-                    <a href="{{ base_url }}?{% query_transform placing_page=placing_orders_page_obj.paginator.num_pages %}">last &raquo;</a> {# FIXED #}
+                    <a href="{{ base_url }}?{% query_transform placing_page=placing_orders_page_obj.next_page_number %}">next</a>
+                    <a href="{{ base_url }}?{% query_transform placing_page=placing_orders_page_obj.paginator.num_pages %}">last &raquo;</a>
                 {% endif %}
             </span>
         {% endif %}
@@ -604,8 +641,8 @@
         <h2>{{ history_title }}</h2>
         {% url 'trades:index' as base_url %} {# Define base_url if not already defined in this scope #}
         {% with request.GET.urlencode as current_params %} {# You don't actually need current_params if only using query_transform #}
-             <a href="{{ base_url }}?{% query_transform history_filter='my' %}"><button class="{% if history_filter == 'my' %}active{% endif %}">My History</button></a> {# FIXED #}
-             <a href="{{ base_url }}?{% query_transform history_filter='all' %}"><button class="{% if history_filter == 'all' %}active{% endif %}">All History</button></a> {# FIXED #}
+             <a href="{{ base_url }}?{% query_transform history_filter='my' %}"><button class="{% if history_filter == 'my' %}active{% endif %}">My History</button></a>
+             <a href="{{ base_url }}?{% query_transform history_filter='all' %}"><button class="{% if history_filter == 'all' %}active{% endif %}">All History</button></a>
         {% endwith %}
     </div>
     <div style="overflow-x: auto;">
@@ -654,7 +691,7 @@
                                  {% if user_page_obj.number %}<input type="hidden" name="user_page" value="{{ user_page_obj.number }}">{% endif %}
                                  <button type="submit" name="delete_transaction">Delete</button>
                              </form>
-                          {% else %} N/A {% endif %}
+                         {% else %} N/A {% endif %}
                     </td>
                 </tr>
             {% empty %}
@@ -666,18 +703,18 @@
     {# --- Pagination Controls for User's Transactions --- #}
     <div class="pagination">
          {% if user_page_obj.has_other_pages %}
-            <span class="step-links">
-                {% if user_page_obj.has_previous %}
-                    <a href="{{ base_url }}?{% query_transform user_page=1 %}">&laquo; first</a> {# FIXED #}
-                    <a href="{{ base_url }}?{% query_transform user_page=user_page_obj.previous_page_number %}">previous</a> {# FIXED #}
-                {% endif %}
-                <span class="current-page"> Page {{ user_page_obj.number }} of {{ user_page_obj.paginator.num_pages }} </span>
-                {% if user_page_obj.has_next %}
-                    <a href="{{ base_url }}?{% query_transform user_page=user_page_obj.next_page_number %}">next</a> {# FIXED #}
-                    <a href="{{ base_url }}?{% query_transform user_page=user_page_obj.paginator.num_pages %}">last &raquo;</a> {# FIXED #}
-                {% endif %}
-            </span>
-        {% endif %}
+             <span class="step-links">
+                 {% if user_page_obj.has_previous %}
+                     <a href="{{ base_url }}?{% query_transform user_page=1 %}">&laquo; first</a>
+                     <a href="{{ base_url }}?{% query_transform user_page=user_page_obj.previous_page_number %}">previous</a>
+                 {% endif %}
+                 <span class="current-page"> Page {{ user_page_obj.number }} of {{ user_page_obj.paginator.num_pages }} </span>
+                 {% if user_page_obj.has_next %}
+                     <a href="{{ base_url }}?{% query_transform user_page=user_page_obj.next_page_number %}">next</a>
+                     <a href="{{ base_url }}?{% query_transform user_page=user_page_obj.paginator.num_pages %}">last &raquo;</a>
+                 {% endif %}
+             </span>
+         {% endif %}
     </div>
 
     {# --- Embedded Charts --- #}
@@ -715,35 +752,35 @@
             function switchForm(targetContainer) {
                  // Don't switch if edit form is active
                  if (editTransactionContainer && editTransactionContainer.classList.contains('active')) {
-                    return;
+                     return;
                  }
 
                  formContainers.forEach(container => {
-                    container.classList.remove('active');
+                     container.classList.remove('active');
                  });
                  formSwitchButtons.forEach(button => {
                      button.classList.remove('active');
                  });
 
                  if (targetContainer) {
-                    targetContainer.classList.add('active');
-                    // Activate corresponding button
-                    if(targetContainer.id === 'addTransactionFormContainer') {
-                        addTransactionBtn.classList.add('active');
-                    } else if (targetContainer.id === 'placingOrderFormContainer') {
-                        placingOrderBtn.classList.add('active');
-                    }
+                     targetContainer.classList.add('active');
+                     // Activate corresponding button
+                     if(targetContainer.id === 'addTransactionFormContainer') {
+                         addTransactionBtn.classList.add('active');
+                     } else if (targetContainer.id === 'placingOrderFormContainer') {
+                         placingOrderBtn.classList.add('active');
+                     }
                  }
             }
 
              // Initial state check (only if edit form isn't showing)
              if (!editTransactionContainer) {
-                  // Determine which form was active server-side (if neither, default to add)
-                  if (placingOrderContainer && placingOrderContainer.classList.contains('active')) {
-                      switchForm(placingOrderContainer);
-                  } else if (addTransactionContainer) { // Default to add transaction
-                      switchForm(addTransactionContainer);
-                  }
+                 // Determine which form was active server-side (if neither, default to add)
+                 if (placingOrderContainer && placingOrderContainer.classList.contains('active')) {
+                     switchForm(placingOrderContainer);
+                 } else if (addTransactionContainer) { // Default to add transaction
+                     switchForm(addTransactionContainer);
+                 }
              } else {
                  // If edit form exists, make sure switch buttons are not active
                  formSwitchButtons.forEach(button => {
